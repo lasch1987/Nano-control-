@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Nano Control</title>
+  <meta name="description" content="Superficie de control táctil de baja latencia para Logic Pro">
+  <meta name="theme-color" content="#0d0f12">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Nano Control">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="topbar">
+    <div id="status" class="status" title="Estado de conexión y latencia (ida y vuelta)">
+      <span class="dot"></span><span id="rtt">…</span>
+    </div>
+    <div id="tc" class="lcd tc" title="Posición de Logic (SMPTE/compases)"></div>
+    <div id="transport" class="transport"></div>
+    <nav id="tabs" class="tabs">
+      <button data-page="mixer" class="on">Mezcla</button>
+      <button data-page="play">Tocar</button>
+      <button data-page="controls">Controles</button>
+      <button data-page="nav">Transporte</button>
+    </nav>
+    <button id="btn-settings" class="icon-btn" aria-label="Ajustes">⚙︎</button>
+  </header>
+
+  <main>
+    <section id="page-mixer" class="page on">
+      <div id="strips" class="strips"></div>
+      <div id="mixer-side" class="mixer-side"></div>
+    </section>
+
+    <section id="page-play" class="page">
+      <div class="play-bar" id="play-bar"></div>
+      <div class="play-area">
+        <div class="strip-ctl" id="bend-wrap"></div>
+        <div id="pads" class="pads"></div>
+      </div>
+    </section>
+
+    <section id="page-controls" class="page">
+      <div id="ctl-strips" class="ctl-strips"></div>
+      <div id="xy-wrap" class="xy-wrap"></div>
+    </section>
+
+    <section id="page-nav" class="page">
+      <div id="nav-grid" class="nav-grid"></div>
+    </section>
+  </main>
+
+  <dialog id="settings">
+    <form method="dialog">
+      <h2>Ajustes</h2>
+      <label>Movimiento de faders
+        <select name="faderMode">
+          <option value="relative">Relativo (sin saltos, ideal para mezclar)</option>
+          <option value="absolute">Absoluto (salta al dedo, como TouchOSC)</option>
+        </select>
+      </label>
+      <label>Velocidad de los pads
+        <select name="velMode">
+          <option value="fixed">Fija</option>
+          <option value="position">Según dónde toques (arriba = fuerte)</option>
+        </select>
+      </label>
+      <label>Velocidad fija <input type="range" name="velocity" min="1" max="127"><output></output></label>
+      <label>Canal MIDI de los pads
+        <select name="playChannel"></select>
+      </label>
+      <label>Canal MIDI de knobs/faders/XY
+        <select name="ctlChannel"></select>
+      </label>
+      <label>Nombres de notas
+        <select name="noteNames">
+          <option value="es">Do Re Mi</option>
+          <option value="en">C D E</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" name="haptics"> Vibración al tocar (Android)</label>
+      <label>PIN (si iniciaste el puente con --pin) <input type="text" name="pin" autocomplete="off" inputmode="numeric"></label>
+      <div class="row">
+        <button type="button" id="btn-fullscreen">Pantalla completa</button>
+        <button type="button" id="btn-panic" class="danger">Pánico MIDI</button>
+        <button value="ok" class="primary">Listo</button>
+      </div>
+      <p class="hint">Consejo de latencia: conecta el iPhone/Android al Mac por <b>cable USB</b> (Compartir Internet / anclaje USB) o usa Wi‑Fi de 5&nbsp;GHz. En iOS: Compartir → «Añadir a pantalla de inicio» para usarlo a pantalla completa.</p>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
