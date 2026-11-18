@@ -129,6 +129,21 @@ La APK la compila GitHub automáticamente (`.github/workflows/android.yml`). Par
 - La latencia medida aparece arriba a la izquierda; si sube de ~15 ms revisa la red.
 - En ⚙︎ elige faders **Relativos** (sin saltos al tocar, ideal para mezclar) o **Absolutos** (saltan al dedo, como TouchOSC).
 
+## 🆘 La app no conecta (pantalla negra o vuelve a pedir conexión)
+
+La app se conecta a la **ventana de Terminal de Nano Control** en el Mac, no a Logic ni a MainStage. Revisa en este orden:
+
+1. **¿Está abierta la ventana de Terminal y dice «puente listo»?** Si la cerraste, abre otra vez `Iniciar Nano Control.command` y déjala abierta.
+2. **Prueba en el propio Mac:** abre Safari en `http://localhost:7777`. Si se ve el controlador, el puente funciona.
+3. **Prueba en el móvil con el navegador** (Chrome/Safari) usando la dirección exacta que muestra la Terminal (`http://192.168.x.x:7777`).
+   - Si en la Terminal aparece `🌐 Interfaz pedida por …`, la red funciona.
+   - Si no aparece nada, el problema es de red o del cortafuegos (sigue con los pasos 4 y 5).
+4. **Misma red:** el móvil debe estar en el **mismo Wi‑Fi** que el Mac, sin datos móviles y sin red de «invitados» (esas redes aíslan los dispositivos).
+5. **Cortafuegos y privacidad del Mac:**
+   - Ajustes del Sistema → Red → **Cortafuegos** → Opciones → permite **node** (o desactívalo para probar).
+   - Ajustes del Sistema → Privacidad y seguridad → **Red local** → activa **Terminal**.
+6. Si tu Mac tiene **VPN** activada, desactívala para probar.
+
 ## Opciones del puente
 
 ```bash

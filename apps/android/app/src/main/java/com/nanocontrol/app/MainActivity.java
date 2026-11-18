@@ -39,7 +39,13 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.net.ConnectException;
+import java.net.HttpURLConnection;
 import java.net.Inet4Address;
+import java.net.NoRouteToHostException;
+import java.net.SocketTimeoutException;
+import java.net.URL;
+import java.net.UnknownHostException;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
@@ -164,8 +170,8 @@ public class MainActivity extends Activity {
             @Override
             public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
                 if (req.isForMainFrame()) {
-                    showSetup("No se pudo conectar con " + prefs.getString("host", "") +
-                            ".\n¿Está abierto Nano Control en el Mac y en la misma red?");
+                    showSetup("Se perdió la conexión con " + prefs.getString("host", "") +
+                            " (" + err.getDescription() + ").\n¿Sigue abierta la ventana de Nano Control en el Mac?");
                 }
             }
         });
@@ -205,6 +211,56 @@ public class MainActivity extends Activity {
         }
         prefs.edit().putString("host", hp).apply();
         hostField.setText(hp);
+        statusText.setTextColor(Color.rgb(25, 195, 255));
+        statusText.setText("Conectando con " + hp + "…");
+        final int attempt = ++connectAttempt;
+        // Comprobamos primero que el Mac responde: así no hay pantalla negra y sabemos el motivo si falla
+        new Thread(() -> {
+            String error = probe(hp);
+            ui.post(() -> {
+                if (attempt != connectAttempt) return; // el usuario ya eligió otro Mac
+                if (error == null) openControl(hp);
+                else {
+                    statusText.setTextColor(Color.rgb(255, 194, 26));
+                    statusText.setText(error);
+                }
+            });
+        }, "nano-probe").start();
+    }
+
+    private int connectAttempt = 0;
+
+    /** Devuelve null si el puente responde, o una explicación en lenguaje claro si no. */
+    private String probe(String hp) {
+        HttpURLConnection c = null;
+        try {
+            c = (HttpURLConnection) new URL("http://" + hp + "/manifest.webmanifest").openConnection();
+            c.setConnectTimeout(4000);
+            c.setReadTimeout(4000);
+            c.setUseCaches(false);
+            int code = c.getResponseCode();
+            if (code == 200) return null;
+            return "El Mac respondió, pero no es Nano Control (código " + code + "). ¿El puerto es el 7777?";
+        } catch (ConnectException e) {
+            return "✖ El Mac " + hp + " rechazó la conexión.\n\n"
+                    + "• ¿Está abierta la ventana de Terminal de «Iniciar Nano Control» y dice «puente listo»?\n"
+                    + "• Revisa que el número después de «:» sea 7777.";
+        } catch (SocketTimeoutException | NoRouteToHostException e) {
+            return "✖ No hay respuesta de " + hp + ".\n\n"
+                    + "• El móvil y el Mac deben estar en la MISMA red Wi‑Fi (no datos móviles ni red de invitados).\n"
+                    + "• Usa la IP exacta que muestra la ventana de Terminal del Mac.\n"
+                    + "• Firewall del Mac: Ajustes del Sistema → Red → Cortafuegos → Opciones → permite «node».";
+        } catch (UnknownHostException e) {
+            return "✖ La dirección «" + hp + "» no es válida. Escribe la IP que muestra el Mac, por ejemplo 192.168.1.20";
+        } catch (Exception e) {
+            return "✖ No se pudo conectar con " + hp + ": " + e.getClass().getSimpleName() + " " + e.getMessage();
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    private void openControl(String hp) {
+        statusText.setText("");
         showingControl = true;
         setupView.setVisibility(View.GONE);
         web.setVisibility(View.VISIBLE);
@@ -218,6 +274,7 @@ public class MainActivity extends Activity {
         web.loadUrl("about:blank");
         web.setVisibility(View.GONE);
         setupView.setVisibility(View.VISIBLE);
+        statusText.setTextColor(Color.rgb(255, 194, 26));
         statusText.setText(message);
         showSystemBars();
     }

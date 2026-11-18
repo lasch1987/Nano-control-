@@ -228,6 +228,8 @@ const server = http.createServer((req, res) => {
   if (reqUrl.pathname === '/api/setlist') return handleApi(req, res, reqUrl);
   let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   if (urlPath === '/') urlPath = '/index.html';
+  // Ayuda a diagnosticar: si ves esta línea, la red entre el móvil y el Mac funciona
+  if (urlPath === '/index.html') console.log(`🌐 Interfaz pedida por ${req.socket.remoteAddress}`);
   const filePath = path.normalize(path.join(WEB_DIR, urlPath));
   if (!filePath.startsWith(WEB_DIR)) {
     res.writeHead(403).end();
@@ -384,11 +386,21 @@ function onClock(b) {
 }
 
 // ───────────────────────────── Arranque ─────────────────────────────
+// Interfaces que el móvil no puede alcanzar (VPN, AirDrop, máquinas virtuales, Docker…)
+const SKIP_IF = /^(utun|awdl|llw|gif|stf|vmnet|vboxnet|docker|br-|veth|anpi|ap\d)/;
 function lanAddresses() {
   const out = [];
   for (const [name, list] of Object.entries(os.networkInterfaces())) {
-    for (const a of list || []) if (a.family === 'IPv4' && !a.internal) out.push({ name, address: a.address });
+    if (SKIP_IF.test(name)) continue;
+    for (const a of list || []) {
+      if (a.family !== 'IPv4' && a.family !== 4) continue;
+      if (a.internal || a.address.startsWith('169.254.')) continue;
+      out.push({ name, address: a.address });
+    }
   }
+  // Primero Wi‑Fi/Ethernet (en0, en1…), luego el resto
+  const rank = (n) => (/^en\d/.test(n) ? 0 : /^(eth|wl)/.test(n) ? 1 : 2);
+  out.sort((x, y) => rank(x.name) - rank(y.name) || x.name.localeCompare(y.name, 'en', { numeric: true }));
   return out;
 }
 
@@ -403,12 +415,15 @@ server.listen(PORT, '0.0.0.0', () => {
       : '   MIDI: MODO SIMULACIÓN (sin puertos MIDI)'
   );
   console.log(`   En este Mac:        http://localhost:${PORT}/${pinQ}`);
+  if (!addrs.length) console.log('   ⚠️  El Mac no tiene conexión de red local: conéctalo al Wi‑Fi.');
   for (const a of addrs) console.log(`   En tu móvil/tablet: http://${a.address}:${PORT}/${pinQ}   (${a.name})`);
   if (addrs[0]) console.log(`   Modo MainStage:     http://${addrs[0].address}:${PORT}/?modo=mainstage${PIN ? '&pin=' + encodeURIComponent(PIN) : ''}`);
   console.log('\n   Escanea con la cámara del móvil (misma red Wi‑Fi):\n');
   try {
     require('qrcode-terminal').generate(main, { small: true });
   } catch (_) {}
+  console.log('   👉 Deja ESTA ventana abierta mientras tocas (si la cierras, el móvil no conecta).');
+  console.log('   👉 Si macOS pregunta por «conexiones entrantes» o «dispositivos en la red local», pulsa PERMITIR.');
   console.log('   Ctrl+C para salir.\n');
   advertise(addrs);
 });
