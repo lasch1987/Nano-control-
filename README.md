@@ -1,6 +1,6 @@
 # 🎛️ Nano Control
 
-Superficie de control táctil **de baja latencia** para **Logic Pro**, inspirada en TouchOSC, Korg nanoKONTROL, Mackie Control y Ableton Push.
+Superficie de control táctil **de baja latencia** para **Logic Pro** y **MainStage** (en vivo), inspirada en TouchOSC, Korg nanoKONTROL, Mackie Control y Ableton Push.
 Funciona en **iPhone / iPad, Android y Mac** desde el navegador, sin instalar apps de tienda.
 
 ```
@@ -34,6 +34,37 @@ La barra superior siempre muestra transporte, posición de Logic y la latencia r
 2. Descarga este repositorio y haz **doble clic en `Iniciar Nano Control.command`**
    (o en Terminal: `npm install && npm start`).
 3. En la ventana aparecerá una dirección tipo `http://192.168.1.20:7777` y un **código QR**.
+
+## 🎹 Modo MainStage (para tocar en vivo)
+
+En ⚙︎ Ajustes → **Modo: MainStage** (o abre `http://IP:7777/?modo=mainstage`). La app cambia a una interfaz de escenario:
+
+| Pestaña | Para qué sirve |
+|---|---|
+| **En vivo** | **Setlist** con letra grande: cada tema envía su *Program Change* y cambia el patch de MainStage. Muestra el tema actual, el **siguiente**, tono, BPM y tus **notas** (acordes, letra, avisos). Botones gigantes **◀ Anterior / Siguiente ▶**. **Tempo** en vivo desde el reloj MIDI de MainStage con luz de pulso (amarilla en el 1). **TAP tempo**, botones de acción y **PÁNICO**. |
+| **Tocar** | Los mismos pads con escalas, acordes y batería (para samples, loops o tocar encima). |
+| **Controles** | 8 faders, 8 knobs, botones y XY para asignar a los controles de pantalla de MainStage. |
+
+**Pensado para el escenario:**
+- 🔒 **Bloqueo de escenario**: un toque al candado bloquea la setlist, las pestañas y los botones de cambio de patch para que un roce no te cambie el sonido en mitad de un tema. Para desbloquear, **mantén pulsado 1 segundo**.
+- 🦶 **Pedal de página Bluetooth** (AirTurn, PageFlip, etc.): flecha derecha/abajo, AvPág o espacio = siguiente tema; flecha izquierda/arriba o RePág = anterior.
+- 📱📱 **Varios dispositivos sincronizados**: si cambias de tema en el iPad, el iPhone también cambia. La setlist se guarda en el Mac (`~/.nano-control/setlist.json`) y la ven todos.
+- La setlist también queda guardada en cada dispositivo: si se corta el Wi‑Fi, sigues viéndola.
+
+### Configurar MainStage
+1. **Cambiar patches con la setlist:** en MainStage, selecciona cada patch y en el **Inspector de patch** activa *Program Change* con un número. En Nano Control: **Editar** → añade los temas con el mismo número (o pulsa *Numerar PC* y numera igual en MainStage). Si al tocar un tema MainStage salta al patch de al lado, cambia ⚙︎ → *Números de Program Change: empiezan en 1*.
+2. **Tempo en la pantalla:** en MainStage → **Ajustes → Sincronización → MIDI**, activa enviar **reloj MIDI** a `Nano Control`. Si tu versión no lo tiene, usa el botón TAP.
+3. **Botones de acción** (modo **Layout**, ⌘L): crea o elige un botón, pulsa **Learn** y toca el botón en la pantalla. Después, en el inspector, asígnale una acción de MainStage:
+
+   | Botón | CC | Acción sugerida en MainStage |
+   |---|---|---|
+   | TAP | 106 | Tap Tempo |
+   | Patch − / Patch + | 102 / 103 | Previous Patch / Next Patch (útil si no usas setlist) |
+   | Set − / Set + | 104 / 105 | Previous Set / Next Set |
+   | Acción 1–4 | 107–110 | Lo que quieras: Playback, mute de una capa, Panic, etc. |
+
+4. **Faders y knobs** (pestaña Controles): en **Layout** pulsa **Learn** en cada control de pantalla y mueve el control en Nano Control (faders CC 41–48, knobs CC 21–28). Para que los faders se coloquen solos al cambiar de patch, en el inspector del control elige **Enviar valor a → Nano Control**.
+5. **Sin setlist**, los botones Anterior/Siguiente envían CC102/CC103: asígnalos a *Previous/Next Patch* y funcionan igual.
 
 ## Configurar Logic Pro
 
@@ -118,6 +149,7 @@ web/index.html     App táctil (PWA)
 web/app.js         Motor: red binaria, faders, V‑Pots, pads, escalas, acordes, feedback MCU
 web/style.css      Diseño adaptable (iPhone, iPad, Android, Mac)
 test/smoke.js      Prueba de punta a punta con navegador real (npm test)
+test/mainstage.js  Prueba del modo MainStage (setlist, PC, reloj MIDI, sincronía, bloqueo)
 ```
 
 ## Licencia

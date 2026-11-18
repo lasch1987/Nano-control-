@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node bridge/server.js",
-    "test": "node test/smoke.js"
+    "test": "node test/smoke.js && node test/mainstage.js"
   },
   "engines": {
     "node": ">=18"

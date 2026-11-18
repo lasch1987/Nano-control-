@@ -249,3 +249,90 @@ dialog .hint { color: var(--dim); font-size: 12px; line-height: 1.45; }
   .big-transport button { height: 34px; font-size: 17px; }
   .nav-hint { display: none; }
 }
+
+/* ═══════════════════ Modo MainStage (en vivo) ═══════════════════ */
+body.mode-mainstage .logic-only, body.mode-logic .ms-only { display: none !important; }
+
+.live-now { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#live-now-name { overflow: hidden; text-overflow: ellipsis; }
+.beat-dot { width: 16px; height: 16px; border-radius: 50%; background: #2a303a; flex: none; transition: background 60ms; }
+.beat-dot.hit { background: var(--play); box-shadow: 0 0 12px var(--play); }
+.beat-dot.hit.down { background: var(--solo); box-shadow: 0 0 14px var(--solo); }
+
+#page-live { gap: 8px; }
+.live-list-wrap { width: 28%; min-width: 210px; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-height: 0; }
+.live-list-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.live-list-head button { height: 32px; padding: 0 14px; }
+.setlist { list-style: none; margin: 0; padding: 4px; overflow-y: auto; flex: 1; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+.setlist li { display: grid; grid-template-columns: 30px 1fr; grid-template-rows: auto auto; padding: 10px 8px; border-radius: 8px; cursor: pointer; gap: 0 6px; }
+.setlist li + li { border-top: 1px solid #ffffff0a; }
+.setlist li .n { grid-row: span 2; color: var(--dim); font-variant-numeric: tabular-nums; font-size: 15px; align-self: center; text-align: right; }
+.setlist li .t { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setlist li small { color: var(--dim); font-size: 11px; }
+.setlist li.current { background: var(--accent); color: #000; }
+.setlist li.current .n, .setlist li.current small { color: #003347; }
+
+.live-main { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.now-card { flex: 1; display: flex; flex-direction: column; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; min-height: 0; }
+.now-meta { display: flex; gap: 16px; color: var(--dim); font-size: 14px; font-variant-numeric: tabular-nums; }
+.now-meta #now-key, .now-meta #now-bpm { color: var(--solo); font-weight: 600; }
+.now-name { font-size: clamp(28px, 5.5vw, 64px); font-weight: 800; line-height: 1.05; letter-spacing: -.5px; }
+.now-notes { flex: 1; overflow-y: auto; white-space: pre-wrap; font-size: clamp(16px, 2.2vw, 24px); line-height: 1.4; color: #cfd6e2; touch-action: pan-y; user-select: text; -webkit-user-select: text; }
+.next-line { color: var(--dim); font-size: 16px; border-top: 1px solid var(--line); padding-top: 8px; }
+.next-line b { color: var(--text); }
+.live-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: none; }
+.live-nav button { height: 76px; font-size: 22px; font-weight: 700; }
+.live-nav #btn-next { background: #0b4c66; border-color: var(--accent); }
+
+.live-side { width: 200px; display: flex; flex-direction: column; gap: 8px; flex: none; min-height: 0; }
+.tempo { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px; text-align: center; }
+.bpm { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.beats { display: flex; gap: 8px; justify-content: center; margin: 6px 0; }
+.beats span { width: 22px; height: 22px; border-radius: 50%; background: #2a303a; }
+.beats span.on { background: var(--play); box-shadow: 0 0 12px var(--play); }
+.beats span:first-child.on { background: var(--solo); box-shadow: 0 0 12px var(--solo); }
+.live-actions { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 6px; min-height: 0; }
+.live-actions button { white-space: pre-line; font-size: 12px; line-height: 1.25; min-height: 40px; }
+.live-actions .tap { grid-column: span 2; font-size: 18px; font-weight: 800; background: #2b2140; border-color: #6d4cc2; }
+.live-actions .panic { grid-column: span 2; font-weight: 800; color: var(--rec); border-color: var(--rec); }
+
+/* Bloqueo de escenario */
+body.locked .lockable { pointer-events: none !important; opacity: .35; }
+body.locked #btn-lock { background: var(--rec); border-color: var(--rec); }
+#btn-lock.holding { animation: hold 1s linear; }
+@keyframes hold { from { box-shadow: inset 0 0 0 0 #fff4; } to { box-shadow: inset 0 0 0 30px #fff4; } }
+
+/* Editor de setlist */
+#setlist-editor { width: min(760px, 96vw); }
+.se-rows { display: flex; flex-direction: column; gap: 8px; max-height: 55dvh; overflow-y: auto; }
+.se-row { display: grid; grid-template-columns: 26px 1fr 64px 64px 64px auto; gap: 6px; align-items: center; background: var(--panel2); border-radius: 8px; padding: 6px; }
+.se-row input, .se-row textarea { height: 36px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font: inherit; font-size: 14px; min-width: 0; }
+.se-row textarea { grid-column: 2 / -1; height: 54px; padding: 6px 8px; resize: vertical; }
+.se-num { color: var(--dim); text-align: right; }
+.se-tools { display: flex; gap: 3px; }
+.se-tools button { width: 32px; height: 36px; padding: 0; }
+.se-tools .danger { color: var(--rec); }
+
+@media (max-width: 900px) {
+  .live-list-wrap { min-width: 170px; }
+  .live-side { width: 150px; }
+  .bpm { font-size: 30px; }
+}
+@media (max-height: 460px) {
+  .live-nav button { height: 54px; font-size: 18px; }
+  .now-card { padding: 8px 12px; gap: 4px; }
+  .beats span { width: 14px; height: 14px; }
+  .bpm { font-size: 26px; }
+  .live-actions button { min-height: 30px; font-size: 11px; }
+  .live-actions .tap { font-size: 13px; }
+}
+@media (max-width: 700px) {
+  #page-live.on { flex-direction: column; overflow-y: auto; }
+  .live-list-wrap { width: auto; max-height: 34dvh; flex: none; }
+  .live-main { flex: none; min-height: 52dvh; }
+  .live-side { width: auto; flex: none; }
+  .live-actions { grid-template-columns: repeat(4, 1fr); }
+  .live-actions .tap, .live-actions .panic { grid-column: span 2; }
+  .se-row { grid-template-columns: 22px 1fr 56px auto; }
+  .se-row .se-key, .se-row .se-bpm { grid-column: 2 / span 1; }
+}

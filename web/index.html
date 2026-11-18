@@ -20,19 +20,52 @@
     <div id="status" class="status" title="Estado de conexión y latencia (ida y vuelta)">
       <span class="dot"></span><span id="rtt">…</span>
     </div>
-    <div id="tc" class="lcd tc" title="Posición de Logic (SMPTE/compases)"></div>
-    <div id="transport" class="transport"></div>
-    <nav id="tabs" class="tabs">
-      <button data-page="mixer" class="on">Mezcla</button>
+    <div id="tc" class="lcd tc logic-only" title="Posición de Logic (SMPTE/compases)"></div>
+    <div id="transport" class="transport logic-only"></div>
+    <div id="live-now" class="live-now ms-only"><span class="beat-dot"></span><span id="live-now-name">—</span></div>
+    <nav id="tabs" class="tabs lockable">
+      <button data-page="live" class="ms-only">En vivo</button>
+      <button data-page="mixer" class="logic-only">Mezcla</button>
       <button data-page="play">Tocar</button>
       <button data-page="controls">Controles</button>
-      <button data-page="nav">Transporte</button>
+      <button data-page="nav" class="logic-only">Transporte</button>
     </nav>
-    <button id="btn-settings" class="icon-btn" aria-label="Ajustes">⚙︎</button>
+    <button id="btn-lock" class="icon-btn ms-only" aria-label="Bloquear escenario" title="Bloqueo de escenario (mantén pulsado para desbloquear)">🔓</button>
+    <button id="btn-settings" class="icon-btn lockable" aria-label="Ajustes">⚙︎</button>
   </header>
 
   <main>
-    <section id="page-mixer" class="page on">
+    <section id="page-live" class="page">
+      <div class="live-list-wrap">
+        <div class="live-list-head">
+          <span class="label">Setlist</span>
+          <button id="btn-edit-setlist" class="lockable">Editar</button>
+        </div>
+        <ol id="setlist" class="setlist lockable"></ol>
+      </div>
+      <div class="live-main">
+        <div class="now-card">
+          <div class="now-meta"><span id="now-num"></span><span id="now-key"></span><span id="now-bpm"></span></div>
+          <div id="now-name" class="now-name">Crea tu setlist con «Editar»</div>
+          <div id="now-notes" class="now-notes"></div>
+          <div class="next-line">Siguiente: <b id="next-name">—</b></div>
+        </div>
+        <div class="live-nav lockable">
+          <button id="btn-prev">◀ Anterior</button>
+          <button id="btn-next">Siguiente ▶</button>
+        </div>
+      </div>
+      <div class="live-side">
+        <div class="tempo">
+          <div id="bpm" class="bpm">---</div>
+          <div class="beats"><span></span><span></span><span></span><span></span></div>
+          <div id="clock-hint" class="label">Sin reloj MIDI</div>
+        </div>
+        <div id="live-actions" class="live-actions"></div>
+      </div>
+    </section>
+
+    <section id="page-mixer" class="page">
       <div id="strips" class="strips"></div>
       <div id="mixer-side" class="mixer-side"></div>
     </section>
@@ -58,6 +91,18 @@
   <dialog id="settings">
     <form method="dialog">
       <h2>Ajustes</h2>
+      <label>Modo
+        <select name="mode">
+          <option value="logic">Logic Pro (mezclador Mackie, transporte)</option>
+          <option value="mainstage">MainStage (en vivo: setlist, tempo, bloqueo)</option>
+        </select>
+      </label>
+      <label class="ms-only">Números de Program Change en MainStage
+        <select name="pcBase">
+          <option value="0">Empiezan en 0</option>
+          <option value="1">Empiezan en 1</option>
+        </select>
+      </label>
       <label>Movimiento de faders
         <select name="faderMode">
           <option value="relative">Relativo (sin saltos, ideal para mezclar)</option>
@@ -92,6 +137,23 @@
         <button value="ok" class="primary">Listo</button>
       </div>
       <p class="hint">Consejo de latencia: conecta el iPhone/Android al Mac por <b>cable USB</b> (Compartir Internet / anclaje USB) o usa Wi‑Fi de 5&nbsp;GHz. En iOS: Compartir → «Añadir a pantalla de inicio» para usarlo a pantalla completa.</p>
+    </form>
+  </dialog>
+
+  <dialog id="setlist-editor">
+    <form method="dialog">
+      <h2>Setlist</h2>
+      <p class="hint">Cada tema envía su <b>Program Change</b> a MainStage (el número que aparece en el inspector del patch). Se guarda en el Mac y la ven todos tus dispositivos.</p>
+      <div id="se-rows" class="se-rows"></div>
+      <div class="row">
+        <button type="button" id="se-add">+ Añadir tema</button>
+        <button type="button" id="se-autopc">Numerar PC</button>
+      </div>
+      <div class="row">
+        <button value="cancel" type="submit" formnovalidate>Cancelar</button>
+        <button type="button" id="se-save" class="primary">Guardar</button>
+      </div>
+      <p id="se-msg" class="hint"></p>
     </form>
   </dialog>
 

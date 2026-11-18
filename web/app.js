@@ -30,6 +30,9 @@ const DEFAULTS = {
   scale: 'Mayor',
   octave: 3,
   rows: 0, // 0 = automático
+  // modo
+  mode: 'logic', // 'logic' | 'mainstage'
+  pcBase: 0, // MainStage muestra los Program Change desde 0 o desde 1
 };
 const settings = Object.assign({}, DEFAULTS, (() => {
   try { return JSON.parse(localStorage.getItem('nano.settings') || '{}'); } catch (_) { return {}; }
@@ -37,6 +40,16 @@ const settings = Object.assign({}, DEFAULTS, (() => {
 function saveSettings() {
   try { localStorage.setItem('nano.settings', JSON.stringify(settings)); } catch (_) {}
 }
+// ?modo=mainstage o ?modo=logic en la dirección fija el modo (útil para un marcador por modo)
+{
+  const m = new URLSearchParams(location.search).get('modo');
+  if (m === 'mainstage' || m === 'logic') {
+    settings.mode = m;
+    saveSettings();
+  }
+}
+const MS = settings.mode === 'mainstage';
+document.body.classList.add(MS ? 'mode-mainstage' : 'mode-logic');
 // Vibración: en las apps nativas usamos el motor háptico del sistema (iPhone incluido)
 const nativeHaptic =
   (window.NanoNative && ((ms) => window.NanoNative.vibrate(ms))) ||
@@ -73,6 +86,7 @@ const net = {
       setStatus('on');
       ws.send(Uint8Array.of(C_SYNC));
       this.ping();
+      if (MS) live.load();
     };
     ws.onmessage = (e) => onFrame(new Uint8Array(e.data));
     ws.onclose = (e) => {
@@ -140,6 +154,9 @@ const midi = {
 // ════════════════════════ Recepción ════════════════════════
 function onFrame(d) {
   const port = d[0];
+  if (port === 0xfd) return live.onClock(d);
+  if (port === 0xfc) return live.load();
+  if (port === 0xfb) return live.select((d[1] << 7) | d[2], false);
   if (port === C_PING) {
     const t0 = net.pings.get(d[1]);
     if (t0 !== undefined) {
@@ -1156,6 +1173,286 @@ function rebindControls() {
   for (const [cc, obj] of play.ctlReg || []) regCtl(ctlKey(cc), obj);
 }
 
+
+// ════════════════════════ Modo MainStage: en vivo ════════════════════════
+// Setlist con Program Change, tempo por reloj MIDI, tap tempo, acciones, bloqueo de escenario
+// y pedal de página Bluetooth (flechas / AvPág) para cambiar de tema con el pie.
+const live = {
+  songs: [],
+  idx: 0,
+  lastClock: 0,
+  taps: [],
+  beatEls: [],
+
+  pin() {
+    const pin = settings.pin || new URLSearchParams(location.search).get('pin') || '';
+    return pin ? '?pin=' + encodeURIComponent(pin) : '';
+  },
+
+  async load() {
+    try {
+      const r = await fetch('/api/setlist' + this.pin(), { cache: 'no-store' });
+      if (!r.ok) throw new Error(r.status);
+      const data = await r.json();
+      this.songs = Array.isArray(data.songs) ? data.songs : [];
+      try { localStorage.setItem('nano.setlist', JSON.stringify(this.songs)); } catch (_) {}
+    } catch (_) {
+      // Sin conexión: usamos la última copia guardada en este dispositivo
+      try { this.songs = JSON.parse(localStorage.getItem('nano.setlist') || '[]'); } catch (_) { this.songs = []; }
+    }
+    this.idx = clamp(this.idx, 0, Math.max(0, this.songs.length - 1));
+    this.render();
+  },
+
+  async save(songs) {
+    const r = await fetch('/api/setlist' + this.pin(), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ songs }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    this.songs = songs;
+    try { localStorage.setItem('nano.setlist', JSON.stringify(songs)); } catch (_) {}
+    this.render();
+  },
+
+  /** Cambia de tema. send=true envía el Program Change y avisa a los demás dispositivos. */
+  select(i, send = true) {
+    if (!this.songs.length) return;
+    i = clamp(i, 0, this.songs.length - 1);
+    this.idx = i;
+    const song = this.songs[i];
+    if (send) {
+      const ch = settings.ctlChannel;
+      const bank = parseInt(song.bank, 10);
+      if (bank >= 0 && bank <= 127) midi.cc(ch, 0, bank);
+      const pc = parseInt(song.pc, 10);
+      if (!isNaN(pc)) {
+        const v = clamp(pc - settings.pcBase, 0, 127);
+        midi.gen(0xc0 | ch, v);
+      }
+      const ws = net.ws;
+      if (ws && ws.readyState === 1) ws.send(Uint8Array.of(0xfb, (i >> 7) & 0x7f, i & 0x7f));
+      haptic();
+    }
+    this.render();
+  },
+
+  step(d) {
+    if (this.songs.length) return this.select(this.idx + d);
+    // Sin setlist: botones «Patch ±» de MainStage (asígnalos con Learn a Next/Previous Patch)
+    const cc = d > 0 ? 103 : 102;
+    midi.cc(settings.ctlChannel, cc, 127);
+    setTimeout(() => midi.cc(settings.ctlChannel, cc, 0), 40);
+    haptic();
+  },
+
+  render() {
+    const list = $('#setlist');
+    if (!list) return;
+    list.innerHTML = '';
+    this.songs.forEach((song, i) => {
+      const li = h('li', i === this.idx ? 'current' : '');
+      const meta = [song.pc !== '' && song.pc != null ? 'PC ' + song.pc : '', song.key, song.bpm ? song.bpm + ' bpm' : '']
+        .filter(Boolean)
+        .join(' · ');
+      li.append(h('span', 'n', String(i + 1)), h('span', 't', song.name || 'Sin nombre'), h('small', null, meta));
+      li.addEventListener('click', () => this.select(i));
+      list.append(li);
+    });
+    const cur = this.songs[this.idx];
+    const nxt = this.songs[this.idx + 1];
+    $('#now-num').textContent = cur ? `${this.idx + 1} / ${this.songs.length}` : '';
+    $('#now-key').textContent = cur && cur.key ? 'Tono: ' + cur.key : '';
+    $('#now-bpm').textContent = cur && cur.bpm ? cur.bpm + ' bpm' : '';
+    $('#now-name').textContent = cur ? cur.name || 'Sin nombre' : 'Crea tu setlist con «Editar»';
+    $('#now-notes').textContent = cur ? cur.notes || '' : 'Sin setlist, «Anterior / Siguiente» envían CC102 / CC103: asígnalos en MainStage a «Previous Patch / Next Patch».';
+    $('#next-name').textContent = nxt ? nxt.name : cur ? '(fin del set)' : '—';
+    $('#live-now-name').textContent = cur ? `${this.idx + 1}. ${cur.name || ''}` : 'MainStage';
+    list.querySelector('.current')?.scrollIntoView({ block: 'nearest' });
+  },
+
+  onClock(d) {
+    const type = d[1];
+    if (type === 1) {
+      const bpm = ((d[2] << 7) | d[3]) / 10;
+      this.lastClock = performance.now();
+      if (bpm > 0) $('#bpm').textContent = bpm.toFixed(bpm < 100 ? 1 : 0);
+      $('#clock-hint').textContent = 'Reloj MIDI de MainStage';
+      this.flash(d[4] % 4);
+    } else if (type === 3) {
+      $('#clock-hint').textContent = 'Reproduciendo';
+    } else if (type === 2) {
+      $('#clock-hint').textContent = 'Parado';
+    }
+  },
+
+  flash(beat) {
+    const dots = this.beatEls;
+    dots.forEach((el, i) => el.classList.toggle('on', i === beat));
+    for (const el of document.querySelectorAll('.beat-dot')) {
+      el.classList.toggle('down', beat === 0);
+      el.classList.add('hit');
+    }
+    clearTimeout(this._ft);
+    this._ft = setTimeout(() => {
+      for (const el of document.querySelectorAll('.beat-dot')) el.classList.remove('hit');
+    }, 110);
+  },
+
+  tap() {
+    const now = performance.now();
+    this.taps = this.taps.filter((t) => now - t < 2500);
+    this.taps.push(now);
+    if (this.taps.length >= 2 && now - this.lastClock > 2000) {
+      const iv = (this.taps[this.taps.length - 1] - this.taps[0]) / (this.taps.length - 1);
+      $('#bpm').textContent = Math.round(60000 / iv);
+      $('#clock-hint').textContent = 'Tap tempo';
+    }
+    this.flash((this.taps.length - 1) % 4);
+  },
+};
+
+function buildLive() {
+  live.beatEls = Array.from(document.querySelectorAll('.tempo .beats span'));
+  $('#btn-prev').addEventListener('click', () => live.step(-1));
+  $('#btn-next').addEventListener('click', () => live.step(+1));
+
+  // Acciones: CC momentáneos para asignar con «Learn» en el Layout de MainStage
+  const acts = $('#live-actions');
+  const tap = makeButton('TAP\nCC106', {
+    cls: 'tap',
+    onPress: () => { midi.cc(settings.ctlChannel, 106, 127); live.tap(); },
+    onRelease: () => midi.cc(settings.ctlChannel, 106, 0),
+  });
+  acts.append(tap);
+  const defs = [
+    ['Patch −', 102], ['Patch +', 103], ['Set −', 104], ['Set +', 105],
+    ['Acción 1', 107], ['Acción 2', 108], ['Acción 3', 109], ['Acción 4', 110],
+  ];
+  for (const [label, cc] of defs) {
+    const b = makeButton(label + '\nCC' + cc, {
+      cls: 'lockable',
+      onPress: () => midi.cc(settings.ctlChannel, cc, 127),
+      onRelease: () => midi.cc(settings.ctlChannel, cc, 0),
+    });
+    acts.append(b);
+  }
+  const panic = makeButton('PÁNICO', { cls: 'c-rec panic', onPress: panicAll });
+  acts.append(panic);
+
+  // Pedal de página Bluetooth / teclado: → ↓ AvPág Espacio = siguiente · ← ↑ RePág = anterior
+  document.addEventListener('keydown', (e) => {
+    if (e.target.closest && e.target.closest('input, textarea, select, dialog')) return;
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); live.step(+1); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); live.step(-1); }
+  });
+
+  // Bloqueo de escenario: un toque bloquea; mantener 1 s desbloquea
+  const lock = $('#btn-lock');
+  let lockTimer = null;
+  const setLocked = (on) => {
+    document.body.classList.toggle('locked', on);
+    lock.textContent = on ? '🔒' : '🔓';
+    haptic();
+  };
+  lock.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (!document.body.classList.contains('locked')) return setLocked(true);
+    lock.classList.add('holding');
+    lockTimer = setTimeout(() => { lock.classList.remove('holding'); setLocked(false); }, 1000);
+  });
+  const cancel = () => { clearTimeout(lockTimer); lock.classList.remove('holding'); };
+  lock.addEventListener('pointerup', cancel);
+  lock.addEventListener('pointercancel', cancel);
+  lock.addEventListener('pointerleave', cancel);
+
+  buildSetlistEditor();
+  try { live.songs = JSON.parse(localStorage.getItem('nano.setlist') || '[]'); } catch (_) {}
+  live.render();
+}
+
+function buildSetlistEditor() {
+  const dlg = $('#setlist-editor');
+  const rows = $('#se-rows');
+  let draft = [];
+
+  const field = (song, key, ph, cls, type = 'text') => {
+    const el = h(type === 'area' ? 'textarea' : 'input', cls);
+    if (type !== 'area') el.type = type;
+    if (type === 'number') { el.inputMode = 'numeric'; el.min = 0; el.max = 300; }
+    el.placeholder = ph;
+    el.value = song[key] ?? '';
+    el.addEventListener('input', () => { song[key] = el.value; });
+    return el;
+  };
+  const draw = () => {
+    rows.innerHTML = '';
+    draft.forEach((song, i) => {
+      const r = h('div', 'se-row');
+      const tools = h('div', 'se-tools');
+      const mk = (txt, fn, cls) => {
+        const b = h('button', cls, txt);
+        b.type = 'button';
+        b.addEventListener('click', fn);
+        return b;
+      };
+      tools.append(
+        mk('▲', () => { if (i > 0) { [draft[i - 1], draft[i]] = [draft[i], draft[i - 1]]; draw(); } }),
+        mk('▼', () => { if (i < draft.length - 1) { [draft[i + 1], draft[i]] = [draft[i], draft[i + 1]]; draw(); } }),
+        mk('✕', () => { draft.splice(i, 1); draw(); }, 'danger')
+      );
+      r.append(
+        h('span', 'se-num', String(i + 1)),
+        field(song, 'name', 'Nombre del tema', 'se-name'),
+        field(song, 'pc', 'PC', 'se-pc', 'number'),
+        field(song, 'key', 'Tono', 'se-key'),
+        field(song, 'bpm', 'BPM', 'se-bpm', 'number'),
+        tools,
+        field(song, 'notes', 'Notas, acordes, letra o avisos para este tema…', 'se-notes', 'area')
+      );
+      rows.append(r);
+    });
+    if (!draft.length) rows.append(h('p', 'hint', 'Aún no hay temas. Pulsa «+ Añadir tema».'));
+  };
+
+  $('#btn-edit-setlist').addEventListener('click', () => {
+    draft = live.songs.map((s) => Object.assign({}, s));
+    $('#se-msg').textContent = '';
+    draw();
+    dlg.showModal();
+  });
+  $('#se-add').addEventListener('click', () => {
+    const last = draft[draft.length - 1];
+    const pc = last && last.pc !== '' && !isNaN(parseInt(last.pc, 10)) ? parseInt(last.pc, 10) + 1 : settings.pcBase;
+    draft.push({ name: '', pc: String(pc), key: '', bpm: '', notes: '' });
+    draw();
+    rows.lastElementChild?.querySelector('.se-name')?.focus();
+  });
+  $('#se-autopc').addEventListener('click', () => {
+    draft.forEach((s, i) => { s.pc = String(i + settings.pcBase); });
+    draw();
+  });
+  $('#se-save').addEventListener('click', async () => {
+    const clean = draft
+      .map((s) => ({
+        name: String(s.name || '').trim(),
+        pc: String(s.pc ?? '').trim(),
+        bank: String(s.bank ?? '').trim(),
+        key: String(s.key || '').trim(),
+        bpm: String(s.bpm || '').trim(),
+        notes: String(s.notes || ''),
+      }))
+      .filter((s) => s.name || s.pc);
+    try {
+      await live.save(clean);
+      dlg.close();
+    } catch (e) {
+      $('#se-msg').textContent = 'No se pudo guardar en el Mac (' + e.message + '). ¿Está abierto Nano Control?';
+    }
+  });
+}
+
 // ════════════════════════ Ajustes, pestañas y arranque ════════════════════════
 function buildSettings() {
   const dlg = $('#settings');
@@ -1176,13 +1473,19 @@ function buildSettings() {
     const el = e.target;
     if (!el.name) return;
     let v = el.type === 'checkbox' ? el.checked : el.value;
-    if (['velocity', 'playChannel', 'ctlChannel'].includes(el.name)) v = +v;
+    if (['velocity', 'playChannel', 'ctlChannel', 'pcBase'].includes(el.name)) v = +v;
     if (el.name === 'playChannel') allNotesOff();
     settings[el.name] = v;
     f.querySelector('output').textContent = settings.velocity;
     saveSettings();
     if (el.name === 'noteNames') refreshPlay();
     if (el.name === 'ctlChannel') rebindControls();
+    if (el.name === 'mode') {
+      // Cambiar de modo reconstruye la interfaz
+      const u = new URL(location.href);
+      u.searchParams.delete('modo');
+      location.replace(u.toString());
+    }
   });
   f.addEventListener('change', (e) => {
     if (e.target.name === 'pin' && net.ws) net.ws.close();
@@ -1220,8 +1523,13 @@ function buildTabs() {
     const b = e.target.closest('button');
     if (b) { e.preventDefault(); show(b.dataset.page); }
   });
-  let p = 'mixer';
-  try { p = localStorage.getItem('nano.page') || 'mixer'; } catch (_) {}
+  const allowed = (pg) => {
+    const b = tabs.querySelector(`button[data-page="${pg}"]`);
+    return b && getComputedStyle(b).display !== 'none';
+  };
+  let p = MS ? 'live' : 'mixer';
+  try { p = localStorage.getItem('nano.page') || p; } catch (_) {}
+  if (!allowed(p)) p = MS ? 'live' : 'mixer';
   show(p);
 }
 
@@ -1253,6 +1561,7 @@ buildMixer();
 buildNav();
 buildPlay();
 buildControls();
+buildLive();
 buildSettings();
 buildTabs();
 renderTc();
@@ -1260,4 +1569,4 @@ mcu.tc.fill(45); // guiones hasta que Logic envíe la posición
 renderTc();
 net.connect();
 
-window.__nano = { settings, net, mcu, play }; // para depurar desde la consola
+window.__nano = { settings, net, mcu, play, live }; // para depurar desde la consola

@@ -37,6 +37,9 @@ const PORT_GENERIC = 0;
 const PORT_MCU = 1;
 const CTRL_PING = 0xff;
 const CTRL_SYNC = 0xfe;
+const CTRL_CLOCK = 0xfd; // [0xFD, tipo(1=pulso,2=stop,3=start), bpm*10 hi, lo, nº de pulso]
+const CTRL_SETLIST = 0xfc; // [0xFC] la setlist cambió: volver a pedirla
+const CTRL_SONG = 0xfb; // [0xFB, idx hi, idx lo] tema actual (sincroniza varios dispositivos)
 
 // ───────────────────────────── MIDI ─────────────────────────────
 function createMock() {
@@ -68,13 +71,14 @@ function createMidi() {
     console.warn('⚠️  No se pudo cargar el módulo MIDI (' + e.message + '). Modo simulación.');
     return null;
   }
-  const make = (label) => {
+  const make = (label, wantClock) => {
     let out, inp;
     try {
       out = new midi.Output();
       inp = new midi.Input();
       out.openVirtualPort(label);
-      inp.ignoreTypes(false, true, true); // queremos SysEx (pantalla LCD del MCU); ignoramos clock y active sensing
+      // SysEx sí (pantalla LCD del MCU); reloj MIDI solo en el puerto genérico (tempo de MainStage)
+      inp.ignoreTypes(false, !wantClock, true);
       inp.openVirtualPort(label);
     } catch (e) {
       console.warn(`⚠️  No se pudo abrir el puerto virtual "${label}": ${e.message}`);
@@ -82,7 +86,7 @@ function createMidi() {
     }
     return { out, inp, label };
   };
-  const generic = make(NAME);
+  const generic = make(NAME, true);
   const mcu = make(NAME + ' MCU');
   if (!generic && !mcu) return null;
   return [generic, mcu];
@@ -168,7 +172,60 @@ const MIME = {
 };
 const fileCache = new Map();
 
+// ───────────────────── Setlist (MainStage): se guarda en el Mac y la comparten todos los dispositivos ─────────────────────
+const DATA_DIR = path.join(os.homedir(), '.nano-control');
+const SETLIST_FILE = path.join(DATA_DIR, 'setlist.json');
+let currentSong = 0;
+
+function handleApi(req, res, url) {
+  if (PIN && url.searchParams.get('pin') !== PIN) {
+    res.writeHead(401).end();
+    return;
+  }
+  if (req.method === 'GET') {
+    fs.readFile(SETLIST_FILE, (err, buf) => {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(err ? '{"songs":[]}' : buf);
+    });
+    return;
+  }
+  if (req.method === 'PUT' || req.method === 'POST') {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > 1024 * 1024) req.destroy();
+      else chunks.push(c);
+    });
+    req.on('end', () => {
+      let data;
+      try {
+        data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (!data || !Array.isArray(data.songs)) throw new Error('formato');
+      } catch (_) {
+        res.writeHead(400).end('JSON inválido');
+        return;
+      }
+      fs.mkdir(DATA_DIR, { recursive: true }, () => {
+        const tmp = SETLIST_FILE + '.tmp';
+        fs.writeFile(tmp, JSON.stringify(data, null, 2), (e) => {
+          if (e) return res.writeHead(500).end(String(e.message));
+          fs.rename(tmp, SETLIST_FILE, () => {
+            res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
+            broadcast(Buffer.from([CTRL_SETLIST]));
+            console.log(`🎼 Setlist guardada (${data.songs.length} temas) en ${SETLIST_FILE}`);
+          });
+        });
+      });
+    });
+    return;
+  }
+  res.writeHead(405).end();
+}
+
 const server = http.createServer((req, res) => {
+  const reqUrl = new URL(req.url || '/', 'http://x');
+  if (reqUrl.pathname === '/api/setlist') return handleApi(req, res, reqUrl);
   let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   if (urlPath === '/') urlPath = '/index.html';
   const filePath = path.normalize(path.join(WEB_DIR, urlPath));
@@ -220,6 +277,7 @@ function sendSync(ws) {
   for (const m of mcuState.notes.values()) msgs.push(frame(PORT_MCU, m));
   for (const m of mcuState.ccs.values()) msgs.push(frame(PORT_MCU, m));
   for (const m of genericState.values()) msgs.push(frame(PORT_GENERIC, m));
+  msgs.push(Buffer.from([CTRL_SONG, (currentSong >> 7) & 0x7f, currentSong & 0x7f]));
   for (const b of msgs) ws.send(b);
 }
 
@@ -235,6 +293,12 @@ wss.on('connection', (ws, req) => {
   console.log(`📱 Conectado: ${who}  (${wss.clients.size} cliente/s)`);
 
   ws.on('message', (data, isBinary) => {
+    if (isBinary && data.length === 3 && data[0] === CTRL_SONG) {
+      // Un dispositivo cambió de tema: los demás lo siguen
+      currentSong = (data[1] << 7) | data[2];
+      for (const c of wss.clients) if (c !== ws && c.readyState === 1 && c.authed) c.send(data);
+      return;
+    }
     if (!isBinary || data.length < 2) {
       if (isBinary && data.length === 1 && data[0] === CTRL_SYNC) sendSync(ws);
       return;
@@ -283,10 +347,40 @@ if (ports[PORT_MCU]) {
 }
 if (ports[PORT_GENERIC]) {
   ports[PORT_GENERIC].inp.on('message', (_dt, m) => {
+    if (m[0] >= 0xf8) return onClock(m[0]); // reloj MIDI: lo resumimos en un mensaje por pulso
     const st = m[0] & 0xf0;
     if (st === 0xb0 || st === 0xe0) genericState.set(m[0] + ':' + (st === 0xb0 ? m[1] : 0), m);
     broadcast(frame(PORT_GENERIC, m));
   });
+}
+
+// Reloj MIDI (24 ticks por negra) → un mensaje por pulso con el BPM, en vez de 48 mensajes/s
+const clock = { ticks: 0, beat: 0, last: 0n, avg: 0 };
+function onClock(b) {
+  if (b === 0xfa) {
+    clock.ticks = 0;
+    clock.beat = 0;
+    broadcast(Buffer.from([CTRL_CLOCK, 3, 0, 0, 0]));
+    return;
+  }
+  if (b === 0xfc) {
+    broadcast(Buffer.from([CTRL_CLOCK, 2, 0, 0, 0]));
+    return;
+  }
+  if (b !== 0xf8) return;
+  const now = process.hrtime.bigint();
+  if (clock.last) {
+    const dt = Number(now - clock.last) / 1e6;
+    if (dt > 0 && dt < 250) clock.avg = clock.avg ? clock.avg * 0.92 + dt * 0.08 : dt;
+    else clock.avg = 0;
+  }
+  clock.last = now;
+  if (clock.ticks % 24 === 0) {
+    const b10 = clock.avg ? Math.min(16383, Math.round(600000 / (clock.avg * 24))) : 0;
+    broadcast(Buffer.from([CTRL_CLOCK, 1, (b10 >> 7) & 0x7f, b10 & 0x7f, clock.beat & 0x7f]));
+    clock.beat++;
+  }
+  clock.ticks++;
 }
 
 // ───────────────────────────── Arranque ─────────────────────────────
@@ -310,6 +404,7 @@ server.listen(PORT, '0.0.0.0', () => {
   );
   console.log(`   En este Mac:        http://localhost:${PORT}/${pinQ}`);
   for (const a of addrs) console.log(`   En tu móvil/tablet: http://${a.address}:${PORT}/${pinQ}   (${a.name})`);
+  if (addrs[0]) console.log(`   Modo MainStage:     http://${addrs[0].address}:${PORT}/?modo=mainstage${PIN ? '&pin=' + encodeURIComponent(PIN) : ''}`);
   console.log('\n   Escanea con la cámara del móvil (misma red Wi‑Fi):\n');
   try {
     require('qrcode-terminal').generate(main, { small: true });
