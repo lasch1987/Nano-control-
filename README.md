@@ -67,6 +67,31 @@ Los canales MIDI de pads y controles se cambian en ⚙︎ Ajustes.
 
 Puedes conectar **varios dispositivos a la vez** (p. ej. iPad para la mezcla y iPhone para los pads): los faders se sincronizan entre ellos.
 
+## Apps nativas (opcionales, recomendadas)
+
+Las apps encuentran tu Mac **solas** por Bonjour (sin escribir IPs) y añaden pantalla completa real, pantalla siempre encendida, vibración háptica y reconexión automática. Dentro de la app, ⚙︎ → **Cambiar de Mac** vuelve a la pantalla de conexión.
+
+### 🤖 Android (APK)
+1. En tu Android abre la página **Releases** de este repositorio → *Nano Control para Android (última versión)*.
+2. Toca **`nano-control.apk`**, ábrelo y acepta «Permitir instalar apps de esta fuente».
+3. Abre Nano Control: tu Mac aparece en la lista → tócalo.
+
+Extra en Android: el Wi‑Fi se pone en **modo de baja latencia** mientras usas la app.
+La APK la compila GitHub automáticamente (`.github/workflows/android.yml`). Para compilarla tú: `cd apps/android && ./gradlew assembleRelease` (requiere Android SDK).
+
+### 🍎 iPad (sin Mac, con Swift Playgrounds)
+1. Instala **Swift Playgrounds** (gratis) en el iPad.
+2. Copia la carpeta `apps/ios/NanoControl.swiftpm` al iPad (AirDrop o iCloud Drive) y ábrela con Swift Playgrounds.
+3. Pulsa ▶︎ y luego **«Instalar en pantalla de inicio»** (o usa el menú *App Settings → Install*). Acepta el permiso de **Red local**.
+
+### 🍎 iPhone (y iPad) con Xcode en el Mac
+1. Instala **Xcode** (gratis) y abre `apps/ios/NanoControl.swiftpm` (doble clic).
+2. En *Signing & Capabilities* elige tu **Apple ID** como equipo (vale una cuenta gratuita).
+3. Conecta el iPhone por cable, selecciónalo arriba y pulsa ▶︎. La primera vez: en el iPhone, Ajustes → General → VPN y gestión de dispositivos → confiar en tu Apple ID.
+4. Con una cuenta gratuita la firma dura 7 días (vuelve a pulsar ▶︎ para renovar). Con cuenta de desarrollador de pago dura un año.
+
+> Sin instalar nada: en iPhone/iPad, Safari → Compartir → **Añadir a pantalla de inicio** también funciona a pantalla completa.
+
 ## Consejos para la mínima latencia
 - 🥇 **Cable USB**: conecta el iPhone al Mac con cable y activa *Compartir Internet* / *Punto de acceso personal*; en Android activa *Anclaje USB*. Usa la IP que aparezca para esa interfaz. Latencia típica < 2 ms.
 - 🥈 **Wi‑Fi de 5 GHz** cerca del router (evita redes de invitados con aislamiento de clientes).
@@ -80,12 +105,15 @@ node bridge/server.js --port 8000          # otro puerto
 node bridge/server.js --pin 1234           # pide PIN (http://IP:7777/?pin=1234)
 node bridge/server.js --name "Mi Control"  # otro nombre de puertos MIDI
 node bridge/server.js --mock               # sin MIDI: imprime lo que enviaría (pruebas)
+node bridge/server.js --no-bonjour         # no anunciarse en la red
 ```
 
 ## Estructura
 
 ```
-bridge/server.js   Puente: HTTP + WebSocket + puertos MIDI virtuales + handshake Mackie Control
+bridge/server.js   Puente: HTTP + WebSocket + puertos MIDI virtuales + handshake Mackie Control + Bonjour
+apps/android/      App nativa Android (WebView acelerado, descubrimiento NSD, Wi‑Fi baja latencia)
+apps/ios/          App nativa iPhone/iPad (SwiftUI + WKWebView, descubrimiento Bonjour, hápticos)
 web/index.html     App táctil (PWA)
 web/app.js         Motor: red binaria, faders, V‑Pots, pads, escalas, acordes, feedback MCU
 web/style.css      Diseño adaptable (iPhone, iPad, Android, Mac)

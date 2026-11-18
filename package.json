@@ -8,9 +8,12 @@
     "start": "node bridge/server.js",
     "test": "node test/smoke.js"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@julusian/midi": "^3.6.1",
+    "bonjour-service": "^1.4.4",
     "qrcode-terminal": "^0.12.0",
     "ws": "^8.18.0"
   },

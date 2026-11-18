@@ -315,9 +315,29 @@ server.listen(PORT, '0.0.0.0', () => {
     require('qrcode-terminal').generate(main, { small: true });
   } catch (_) {}
   console.log('   Ctrl+C para salir.\n');
+  advertise(addrs);
 });
 
+// Anuncio Bonjour/mDNS: las apps de Android, iPhone e iPad encuentran este Mac solas.
+let bonjour = null;
+function advertise(addrs) {
+  if (args.includes('--no-bonjour')) return;
+  try {
+    const { Bonjour } = require('bonjour-service');
+    bonjour = new Bonjour();
+    bonjour.publish({
+      name: `${NAME} (${os.hostname().replace(/\.local$/, '')})`,
+      type: 'nanocontrol',
+      port: PORT,
+      txt: { ip: addrs.map((a) => a.address).join(','), port: String(PORT), pin: PIN ? '1' : '0' },
+    });
+  } catch (e) {
+    console.warn('⚠️  Bonjour no disponible (' + e.message + '); en la app escribe la IP a mano.');
+  }
+}
+
 function shutdown() {
+  try { bonjour && bonjour.unpublishAll(() => bonjour.destroy()); } catch (_) {}
   for (const p of ports) {
     if (!p) continue;
     try {

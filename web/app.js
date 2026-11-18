@@ -37,8 +37,14 @@ const settings = Object.assign({}, DEFAULTS, (() => {
 function saveSettings() {
   try { localStorage.setItem('nano.settings', JSON.stringify(settings)); } catch (_) {}
 }
+// Vibración: en las apps nativas usamos el motor háptico del sistema (iPhone incluido)
+const nativeHaptic =
+  (window.NanoNative && ((ms) => window.NanoNative.vibrate(ms))) ||
+  (window.webkit?.messageHandlers?.haptic && (() => window.webkit.messageHandlers.haptic.postMessage(1))) ||
+  (navigator.vibrate && ((ms) => navigator.vibrate(ms))) ||
+  null;
 function haptic() {
-  if (settings.haptics && navigator.vibrate) navigator.vibrate(6);
+  if (settings.haptics && nativeHaptic) nativeHaptic(6);
 }
 
 // ════════════════════════ Red (WebSocket binario) ════════════════════════
@@ -1183,6 +1189,18 @@ function buildSettings() {
   });
   $('#btn-settings').addEventListener('click', () => { load(); dlg.showModal(); });
   $('#btn-panic').addEventListener('click', panicAll);
+  // Dentro de las apps nativas (Android / iOS): botón para volver a la pantalla de conexión
+  const iosNano = window.webkit?.messageHandlers?.nano;
+  if (window.NanoNative || iosNano) {
+    $('#btn-fullscreen').hidden = true;
+    const sw = $('#btn-switch');
+    sw.hidden = false;
+    sw.addEventListener('click', () => {
+      panicAll();
+      if (window.NanoNative?.disconnect) window.NanoNative.disconnect();
+      else iosNano?.postMessage('disconnect');
+    });
+  }
   $('#btn-fullscreen').addEventListener('click', () => {
     const d = document.documentElement;
     (d.requestFullscreen || d.webkitRequestFullscreen)?.call(d);
