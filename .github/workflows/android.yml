@@ -24,7 +24,8 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # Los runners de GitHub ya incluyen el SDK de Android (ANDROID_HOME);
+      # Gradle descarga solo lo que falte (plataforma 35, build-tools).
 
       - name: Compilar APK
         run: |
