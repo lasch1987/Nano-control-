@@ -133,6 +133,20 @@ const has = (re) => sent.some((s) => re.test(s));
   await a.click('#ctl-editor button[value=ok]');
   await wait(150);
   check((await a.locator('.ctl-strip').first().locator('.cc').first().textContent()).includes('CC74'), 'control editado: Filtro CC74');
+  await a.click('#ctl-bar .btn'); // salir de edición
+  // Asistente de conexión
+  await a.click('.wiz-open');
+  check((await a.textContent('.wz-name')).includes('CC74'), 'asistente: paso 1 = Filtro CC74');
+  sent.length = 0;
+  await a.click('.wz-send');
+  await wait(600);
+  const moves = sent.filter((l) => /^0 b0 4a /.test(l)).length;
+  check(moves >= 5, 'asistente: «Mover» envía un movimiento (' + moves + ' mensajes CC74)');
+  await a.click('.wz-next');
+  check((await a.textContent('.wz-name')).includes('CC15'), 'asistente: paso 2 = Tweak 2 CC15');
+  check(await a.isVisible('.wiz-target'), 'asistente: resalta el control en pantalla');
+  await a.screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'ms-ipad-wizard.png') });
+  await a.click('.wz-close');
   await a.screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'ms-ipad-controls.png') });
   await b.click('#tabs button[data-page="controls"]');
   await b.setViewportSize({ width: 390, height: 844 });

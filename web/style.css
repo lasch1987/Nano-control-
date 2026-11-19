@@ -352,3 +352,23 @@ body.locked #btn-lock { background: var(--rec); border-color: var(--rec); }
 .se-row.section { background: #2a2414; }
 .se-row.section .se-name { font-weight: 700; color: var(--solo); }
 .se-bulk { width: 100%; min-height: 140px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: inherit; font-size: 14px; }
+
+/* Asistente de conexión */
+.wizard { position: fixed; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(560px, calc(100vw - 20px)); z-index: 50;
+  background: #10141a; border: 2px solid var(--solo); border-radius: 14px; padding: 12px 14px; box-shadow: 0 10px 40px #000c; display: flex; flex-direction: column; gap: 6px; }
+.wizard[hidden] { display: none; }
+.wz-head { display: flex; justify-content: space-between; align-items: center; color: var(--dim); font-size: 12px; }
+.wz-close { width: 34px; height: 30px; }
+.wz-name { font-size: 22px; font-weight: 800; color: var(--solo); }
+.wz-help { color: #cfd6e2; font-size: 14px; line-height: 1.4; }
+.wz-row { display: grid; grid-template-columns: 60px 1fr 1fr; gap: 6px; margin-top: 4px; }
+.wz-row button { height: 52px; font-size: 17px; font-weight: 700; }
+.wz-row .primary { background: var(--solo); border-color: var(--solo); color: #000; }
+.wiz-target { outline: 3px solid var(--solo) !important; outline-offset: 2px; box-shadow: 0 0 22px var(--solo) !important; }
+.ctl-bar .wiz-open { border-color: var(--solo); color: var(--solo); }
+@media (max-height: 460px) {
+  .wizard { padding: 8px 10px; gap: 3px; }
+  .wz-name { font-size: 17px; }
+  .wz-help { font-size: 12px; }
+  .wz-row button { height: 40px; }
+}

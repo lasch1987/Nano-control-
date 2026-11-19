@@ -1183,7 +1183,10 @@ function buildControls() {
     hint.textContent = on ? 'Toca un control para cambiar su nombre o su número CC' : `Canal MIDI ${settings.ctlChannel + 1} · en MainStage usa «Learn» en modo Layout`;
   });
   const hint = h('span', 'label', `Canal MIDI ${settings.ctlChannel + 1} · en MainStage usa «Learn» en modo Layout`);
-  bar.append(presetSel, edit, hint);
+  const wizBtn = h('button', 'btn wiz-open', '🔗 Conectar con MainStage');
+  wizBtn.type = 'button';
+  wizBtn.addEventListener('click', () => wizard.open());
+  bar.append(presetSel, edit, wizBtn, hint);
   bar.classList.add('lockable');
 
   // Tiras
@@ -1269,6 +1272,108 @@ function buildControls() {
     }, true);
   }
 }
+
+// ════════════════════════ Asistente de conexión con MainStage ════════════════════════
+// Recorre todos los controles uno a uno. En MainStage: modo Diseño → selecciona el control → Aprender.
+// Aquí: «Mover» envía un pequeño movimiento de ese control para que MainStage lo aprenda.
+const wizard = {
+  steps: [],
+  i: 0,
+  el: null,
+
+  build() {
+    const steps = [];
+    const objFor = (cc) => (play.ctlReg || []).find(([c]) => c === cc)?.[1];
+    const add = (kind, d, sel, group) => steps.push({ kind, name: d.n, cc: d.cc, sel, group, obj: objFor(d.cc) });
+    const S = ctlLayout.strips;
+    S.forEach((sp, i) => sp.knob && add('knob', sp.knob, `[data-ctl="${i}:knob"]`, 'Knobs'));
+    S.forEach((sp, i) => ['a', 'b'].forEach((f) => sp[f] && add('btn', sp[f], `[data-ctl="${i}:${f}"]`, 'Botones')));
+    S.forEach((sp, i) => sp.fader && add('fader', sp.fader, `[data-ctl="${i}:fader"]`, 'Faders'));
+    if (MS) {
+      [['TAP (Tap Tempo)', 106], ['Patch − (Previous Patch)', 102], ['Patch + (Next Patch)', 103], ['Set − (Previous Set)', 104],
+        ['Set + (Next Set)', 105], ['Acción 1', 107], ['Acción 2', 108], ['Acción 3', 109], ['Acción 4', 110]]
+        .forEach(([n, cc]) => steps.push({ kind: 'btn', name: n, cc, sel: null, group: 'Acciones (pestaña En vivo)' }));
+    }
+    return steps;
+  },
+
+  open() {
+    this.steps = this.build();
+    this.i = 0;
+    if (!this.el) {
+      const el = h('div', 'wizard');
+      el.innerHTML = `
+        <div class="wz-head"><span class="wz-step"></span><button type="button" class="wz-close" aria-label="Cerrar">✕</button></div>
+        <div class="wz-name"></div>
+        <div class="wz-help"></div>
+        <div class="wz-row">
+          <button type="button" class="wz-prev">◀</button>
+          <button type="button" class="wz-send primary">↕ Mover</button>
+          <button type="button" class="wz-next">Siguiente ▶</button>
+        </div>`;
+      document.body.append(el);
+      el.querySelector('.wz-close').addEventListener('click', () => this.close());
+      el.querySelector('.wz-prev').addEventListener('click', () => this.go(this.i - 1));
+      el.querySelector('.wz-next').addEventListener('click', () => this.go(this.i + 1));
+      el.querySelector('.wz-send').addEventListener('click', () => this.send());
+      this.el = el;
+    }
+    this.el.hidden = false;
+    this.go(0);
+  },
+
+  close() {
+    if (this.el) this.el.hidden = true;
+    document.querySelectorAll('.wiz-target').forEach((e) => e.classList.remove('wiz-target'));
+  },
+
+  go(i) {
+    if (i >= this.steps.length) {
+      this.el.querySelector('.wz-step').textContent = '¡Listo!';
+      this.el.querySelector('.wz-name').textContent = '✅ Todos los controles enviados';
+      this.el.querySelector('.wz-help').innerHTML = 'En MainStage desactiva <b>Aprender</b>, vuelve a <b>Interpretación</b> y guarda el concierto (⌘S). Prueba moviendo los controles del celular.';
+      document.querySelectorAll('.wiz-target').forEach((e) => e.classList.remove('wiz-target'));
+      this.i = this.steps.length;
+      return;
+    }
+    this.i = clamp(i, 0, this.steps.length - 1);
+    const st = this.steps[this.i];
+    document.querySelectorAll('.wiz-target').forEach((e) => e.classList.remove('wiz-target'));
+    const target = st.sel && document.querySelector(st.sel);
+    if (target) {
+      target.classList.add('wiz-target');
+      target.scrollIntoView({ block: 'nearest', inline: 'center' });
+    }
+    const kindName = { knob: 'knob', fader: 'fader', btn: 'botón' }[st.kind];
+    this.el.querySelector('.wz-step').textContent = `Paso ${this.i + 1} de ${this.steps.length} · ${st.group}`;
+    this.el.querySelector('.wz-name').textContent = `${st.name} · CC${st.cc}`;
+    this.el.querySelector('.wz-help').innerHTML =
+      `En MainStage (modo <b>Diseño</b>, con <b>Aprender</b> activo) haz clic en el <b>${kindName}</b> que quieras para «${st.name}». Luego toca <b>↕ Mover</b>.`;
+  },
+
+  /** Envía un movimiento corto para que MainStage lo aprenda, y deja el control donde estaba. */
+  send() {
+    const st = this.steps[this.i];
+    if (!st) return;
+    const ch = settings.ctlChannel;
+    haptic();
+    if (st.kind === 'btn') {
+      midi.cc(ch, st.cc, 127);
+      setTimeout(() => midi.cc(ch, st.cc, 0), 150);
+    } else {
+      const base = Math.round(((st.obj && st.obj.v) || 0) * 127);
+      const lo = clamp(base - 16, 0, 127), hi = clamp(base + 16, 0, 127);
+      const seq = [];
+      for (let v = lo; v <= hi; v += 4) seq.push(v);
+      for (let v = hi; v >= base; v -= 4) seq.push(v);
+      seq.push(base);
+      seq.forEach((v, k) => setTimeout(() => midi.cc(ch, st.cc, v), k * 18));
+    }
+    const b = this.el.querySelector('.wz-send');
+    b.textContent = '✓ Enviado';
+    setTimeout(() => { b.textContent = '↕ Mover'; }, 700);
+  },
+};
 
 function editControl(si, field) {
   const d = ctlLayout.strips[si][field];
@@ -1751,4 +1856,4 @@ mcu.tc.fill(45); // guiones hasta que Logic envíe la posición
 renderTc();
 net.connect();
 
-window.__nano = { settings, net, mcu, play, live }; // para depurar desde la consola
+window.__nano = { settings, net, mcu, play, live, wizard }; // para depurar desde la consola
