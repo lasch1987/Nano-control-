@@ -1127,6 +1127,25 @@ const CTL_PRESETS = {
       fader: { n: 'Fader ' + (i + 1), cc: 41 + i },
     })),
   },
+  pro: {
+    // Pensada para el concierto «En vivo Pro» de docs/mainstage-pro.md (CC libres, sin chocar con los estándar)
+    title: 'En vivo Pro (buses)',
+    xy: [74, 11], // X = filtro del synth · Y = swell/expresión
+    strips: [
+      ['Pad', 20, 'Filtro Pad', 52, 'Mute Pad', 112],
+      ['Piano', 21, 'Rev Piano', 53, 'Mute Piano', 113],
+      ['Keys', 22, 'Drive Keys', 54, 'Mute Keys', 114],
+      ['Synth', 23, 'Filtro Syn', 55, 'Mute Synth', 115],
+      ['Cuerdas', 24, 'Swell', 56, 'Mute Cuer.', 116],
+      ['Lead', 25, 'Delay Lead', 57, 'Mute Lead', 117],
+      ['Reverb', 26, 'Shimmer', 58, 'Freeze', 118],
+      ['Delay', 27, 'Feedback', 59, 'Tap Delay', 119],
+    ].map(([fn, fcc, kn, kcc, bn, bcc]) => ({
+      knob: { n: kn, cc: kcc },
+      a: { n: bn, cc: bcc, t: bn === 'Tap Delay' ? 'mom' : 'toggle' },
+      fader: { n: fn, cc: fcc },
+    })).concat([{ knob: { n: 'Brillo', cc: 60 }, fader: { n: 'Master', cc: 28 } }]),
+  },
   two: {
     title: 'MainStage «TWO»',
     xy: [1, 11],

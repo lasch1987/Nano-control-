@@ -51,6 +51,8 @@ En ⚙︎ Ajustes → **Modo: MainStage** (o abre `http://IP:7777/?modo=mainstag
 - 📱📱 **Varios dispositivos sincronizados**: si cambias de tema en el iPad, el iPhone también cambia. La setlist se guarda en el Mac (`~/.nano-control/setlist.json`) y la ven todos.
 - La setlist también queda guardada en cada dispositivo: si se corta el Wi‑Fi, sigues viéndola.
 
+> 📘 **¿Quieres montar un concierto profesional desde cero?** (buses de teclados, compresión, reverb/delay compartidos, pad entre patches, ajustes de baja latencia): sigue **[docs/mainstage-pro.md](docs/mainstage-pro.md)** y usa la plantilla del celular **«En vivo Pro (buses)»**.
+
 ### Configurar MainStage
 1. **Cambiar patches con la setlist:** en MainStage, selecciona cada patch y en el **Inspector de patch** activa *Program Change* con un número. En Nano Control: **Editar** → añade los temas con el mismo número (o pulsa *Numerar PC* y numera igual en MainStage). Si al tocar un tema MainStage salta al patch de al lado, cambia ⚙︎ → *Números de Program Change: empiezan en 1*.
 2. **Tempo en la pantalla:** en MainStage → **Ajustes → Sincronización → MIDI**, activa enviar **reloj MIDI** a `Nano Control`. Si tu versión no lo tiene, usa el botón TAP.
