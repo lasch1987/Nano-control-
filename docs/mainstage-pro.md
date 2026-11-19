@@ -15,8 +15,8 @@ MainStage → **Ajustes → Audio**:
 | Dispositivo de salida | Tu interfaz de audio (no los altavoces del Mac) | Los drivers de una interfaz tienen menos latencia |
 | Frecuencia de muestreo | **48 kHz** | El estándar en directo; 96 kHz duplica el uso de CPU |
 | Tamaño del búfer de E/S | **128** (prueba **64** si la CPU lo aguanta) | 128 a 48 kHz ≈ 2,7 ms: imperceptible |
-| Rango del búfer de proceso | **Pequeño** | Menos latencia interna |
-| Multithreading | Activado (todos los núcleos) | Reparte los plugins entre núcleos |
+| Búfer de seguridad de E/S (*I/O Safety Buffer*) | **Desactivado** | Añade latencia; actívalo solo si oyes chasquidos con el búfer bajo |
+| Latencia del driver (*Driver Latency*, si aparece) | **Lo más bajo posible** | Apple recomienda bajarlo una vez elegido el búfer |
 
 Si oyes chasquidos o crujidos, sube el búfer a 256 y revisa la sección 6 (plugins pesados).
 
@@ -142,7 +142,20 @@ En Nano Control (modo MainStage) → **Controles** → **Plantilla… → En viv
 
 ---
 
-## 7. Lista de comprobación antes de tocar
+## 7. Principios de las plantillas profesionales (Sunday Keys, Peter James/Hillsong)
+
+Lo que tienen en común las plantillas de pago más usadas en *worship*, y cómo aplicarlo en la tuya:
+
+| Principio | Cómo lo hacen | En tu concierto |
+|---|---|---|
+| **Pads siempre disponibles e independientes** | Sunday Keys trae un reproductor de pads ambientales (*Tonic*). Los *Ambient Pads* de Peter James ofrecen el pad en 3 octavas (grave, medio, agudo) con un fader para cada una | Pad a nivel de Set (sección 3C) y, si puedes, 3 capas de pad con faders separados |
+| **Pads de audio en lugar de sintetizadores** | Peter James usa archivos WAV largos (12 min, uno por tono) en el plugin **Playback**, que se apagan solos con *fade* | Casi no gastan CPU: ideal para Macs modestos |
+| **Reverbs pensadas por instrumento** | Peter James distribuye presets de reverb específicos para pianos, Rhodes, bajos, arpegios, leads y pads | Un auxiliar de reverb por familia, o envíos distintos a la misma reverb |
+| **Controlador ya asignado** | Sunday Keys viene asignada al **Korg nanoKONTROL2** y a **TouchOSC** | En Nano Control: **Plantilla → nanoKONTROL2 (Sunday Keys)**. El celular se comporta igual que ese controlador |
+| **Diseño para dos teclados** | Sunday Keys incluye un diseño listo para dos teclados | Si tocas con dos teclados, prepara el diseño desde el principio |
+| **Pocos plugins de terceros** | Hay versiones «nativas» que solo usan plugins de MainStage; las versiones PRO necesitan plugins de pago (p. ej. Valhalla) | Empieza con plugins nativos: menos fallos y menos latencia |
+
+## 8. Lista de comprobación antes de tocar
 
 - [ ] Búfer en 128, 48 kHz, interfaz de audio seleccionada
 - [ ] Click y guías por Output 3‑4, no por la 1‑2

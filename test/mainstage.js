@@ -134,6 +134,31 @@ const has = (re) => sent.some((s) => re.test(s));
   await wait(150);
   check((await a.locator('.ctl-strip').first().locator('.cc').first().textContent()).includes('CC74'), 'control editado: Filtro CC74');
   await a.click('#ctl-bar .btn'); // salir de edición
+  // Plantilla nanoKONTROL2: fader 1 = CC0, knob 1 = CC16, R1 = CC64
+  await a.selectOption('#ctl-bar select', 'nk2');
+  await wait(200);
+  check((await a.locator('[data-ctl="0:c"]').count()) === 1, 'nanoKONTROL2: botones S/M/R');
+  sent.length = 0;
+  const nb = await a.locator('.ctl-strip').first().locator('.fader').boundingBox();
+  await a.mouse.move(nb.x + nb.width / 2, nb.y + nb.height - 20);
+  await a.mouse.down();
+  await a.mouse.move(nb.x + nb.width / 2, nb.y + 30, { steps: 5 });
+  await a.mouse.up();
+  await a.locator('.ctl-strip').first().locator('button:has-text("R")').click();
+  await wait(200);
+  check(has(/^0 b0 00 /) && has(/^0 b0 40 7f/), 'nanoKONTROL2: fader 1 = CC0, botón R1 = CC64');
+  await a.screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'ms-ipad-nk2.png') });
+  await a.selectOption('#ctl-bar select', 'two');
+  await wait(200);
+  await a.locator('.ctl-strip').first().locator('.cc').first().waitFor();
+  // volver a poner el knob editado para las comprobaciones siguientes
+  await a.click('#ctl-bar .btn');
+  await a.locator('.ctl-strip').first().locator('.knob2').click();
+  await a.fill('#ctl-editor input[name=n]', 'Filtro');
+  await a.fill('#ctl-editor input[name=cc]', '74');
+  await a.click('#ctl-editor button[value=ok]');
+  await wait(150);
+  await a.click('#ctl-bar .btn');
   // Asistente de conexión
   await a.click('.wiz-open');
   check((await a.textContent('.wz-name')).includes('CC74'), 'asistente: paso 1 = Filtro CC74');

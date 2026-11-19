@@ -1127,6 +1127,24 @@ const CTL_PRESETS = {
       fader: { n: 'Fader ' + (i + 1), cc: 41 + i },
     })),
   },
+  nk2: {
+    // Mapa de fábrica del Korg nanoKONTROL2 (modo CC, canal 1). Sunday Keys y muchas plantillas vienen
+    // preasignadas a este controlador: con esta plantilla el celular se comporta igual.
+    title: 'nanoKONTROL2 (Sunday Keys)',
+    xy: [12, 13],
+    strips: Array.from({ length: 8 }, (_, i) => ({
+      knob: { n: 'Knob ' + (i + 1), cc: 16 + i },
+      a: { n: 'S', cc: 32 + i, t: 'mom' },
+      b: { n: 'M', cc: 48 + i, t: 'mom' },
+      c: { n: 'R', cc: 64 + i, t: 'mom' },
+      fader: { n: 'Fader ' + (i + 1), cc: 0 + i },
+    })).concat([
+      { a: { n: '◀ Track', cc: 58, t: 'mom' }, b: { n: 'Track ▶', cc: 59, t: 'mom' }, c: { n: 'Cycle', cc: 46, t: 'mom' } },
+      { a: { n: 'Set mkr', cc: 60, t: 'mom' }, b: { n: '◀ Mkr', cc: 61, t: 'mom' }, c: { n: 'Mkr ▶', cc: 62, t: 'mom' } },
+      { a: { n: '◀◀', cc: 43, t: 'mom' }, b: { n: '▶▶', cc: 44, t: 'mom' }, c: { n: '■', cc: 42, t: 'mom' } },
+      { a: { n: '▶', cc: 41, t: 'mom' }, b: { n: '●', cc: 45, t: 'mom' } },
+    ]),
+  },
   pro: {
     // Pensada para el concierto «En vivo Pro» de docs/mainstage-pro.md (CC libres, sin chocar con los estándar)
     title: 'En vivo Pro (buses)',
@@ -1223,7 +1241,7 @@ function buildControls() {
       st.append(kEl, tag(h('div', 'cc', `${sp.knob.n}\nCC${sp.knob.cc}`), 'knob'));
       reg.push([sp.knob.cc, knob]);
     } else st.append(h('div', 'knob-gap'));
-    for (const f of ['a', 'b']) {
+    for (const f of ['a', 'b', 'c']) {
       const d = sp[f];
       if (!d) continue;
       const btn = makeButton(d.n, {
@@ -1306,7 +1324,7 @@ const wizard = {
     const add = (kind, d, sel, group) => steps.push({ kind, name: d.n, cc: d.cc, sel, group, obj: objFor(d.cc) });
     const S = ctlLayout.strips;
     S.forEach((sp, i) => sp.knob && add('knob', sp.knob, `[data-ctl="${i}:knob"]`, 'Knobs'));
-    S.forEach((sp, i) => ['a', 'b'].forEach((f) => sp[f] && add('btn', sp[f], `[data-ctl="${i}:${f}"]`, 'Botones')));
+    S.forEach((sp, i) => ['a', 'b', 'c'].forEach((f) => sp[f] && add('btn', sp[f], `[data-ctl="${i}:${f}"]`, 'Botones')));
     S.forEach((sp, i) => sp.fader && add('fader', sp.fader, `[data-ctl="${i}:fader"]`, 'Faders'));
     if (MS) {
       [['TAP (Tap Tempo)', 106], ['Patch − (Previous Patch)', 102], ['Patch + (Next Patch)', 103], ['Set − (Previous Set)', 104],
@@ -1401,10 +1419,10 @@ function editControl(si, field) {
   const f = dlg.querySelector('form');
   f.elements.n.value = d.n;
   f.elements.cc.value = d.cc;
-  const isBtn = field === 'a' || field === 'b';
+  const isBtn = field === 'a' || field === 'b' || field === 'c';
   f.elements.t.closest('label').hidden = !isBtn;
   f.elements.t.value = d.t || 'mom';
-  dlg.querySelector('h2').textContent = { knob: 'Knob', fader: 'Fader', a: 'Botón', b: 'Botón' }[field] + ' ' + (si + 1);
+  dlg.querySelector('h2').textContent = { knob: 'Knob', fader: 'Fader', a: 'Botón', b: 'Botón', c: 'Botón' }[field] + ' ' + (si + 1);
   dlg.onclose = () => {
     if (dlg.returnValue !== 'ok') return;
     const cc = parseInt(f.elements.cc.value, 10);
