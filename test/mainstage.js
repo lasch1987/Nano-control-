@@ -90,6 +90,58 @@ const has = (re) => sent.some((s) => re.test(s));
   check(!has(/^0 c0/), 'bloqueado: no cambia de tema por un toque accidental');
   check(await a.evaluate(() => document.body.classList.contains('locked')), 'modo bloqueo activo');
 
+  // Desbloquear (mantener 1 s) y pegar la lista con secciones
+  const lb = await a.locator('#btn-lock').boundingBox();
+  await a.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2);
+  await a.mouse.down();
+  await wait(1200);
+  await a.mouse.up();
+  check(!(await a.evaluate(() => document.body.classList.contains('locked'))), 'mantener 1 s desbloquea');
+  await a.click('#btn-edit-setlist');
+  await a.click('#se-bulk-wrap summary');
+  await a.fill('#se-bulk', 'Set 1\nB - SAVES bASS\nAb - FOR EVERYONE\nSolar Noise\nSet 2\nC - Closer');
+  await a.click('#se-bulk-apply');
+  await a.click('#se-save');
+  await wait(400);
+  check((await a.locator('#setlist li.section').count()) === 2, 'secciones Set 1 / Set 2 en la setlist');
+  check((await a.locator('#setlist li:not(.section)').count()) === 4, '4 patches importados pegando la lista');
+  sent.length = 0;
+  await a.click('#setlist li:has-text("C - Closer")');
+  await wait(200);
+  check(has(/^0 c0 03$/), 'PC numerados saltando las secciones (C - Closer = PC 3)');
+  check((await a.textContent('#now-key')).includes('C'), 'tono leído del nombre');
+  await a.keyboard.press('ArrowLeft');
+  await wait(150);
+  check((await a.textContent('#now-name')) === 'Solar Noise', 'anterior salta la sección');
+
+  // Controles con la plantilla «TWO»
+  await a.click('#tabs button[data-page="controls"]');
+  check((await a.locator('.ctl-strip').count()) === 10, 'plantilla TWO: 10 tiras');
+  sent.length = 0;
+  const fb = await a.locator('.ctl-strip').first().locator('.fader').boundingBox();
+  await a.mouse.move(fb.x + fb.width / 2, fb.y + fb.height - 20);
+  await a.mouse.down();
+  await a.mouse.move(fb.x + fb.width / 2, fb.y + 20, { steps: 6 });
+  await a.mouse.up();
+  await wait(150);
+  check(has(/^0 b0 02 /), 'fader 1 envía CC2 (Breath), como en tu concierto');
+  // Editar un control
+  await a.click('#ctl-bar .btn');
+  await a.locator('.ctl-strip').first().locator('.knob2').click();
+  await a.fill('#ctl-editor input[name=n]', 'Filtro');
+  await a.fill('#ctl-editor input[name=cc]', '74');
+  await a.click('#ctl-editor button[value=ok]');
+  await wait(150);
+  check((await a.locator('.ctl-strip').first().locator('.cc').first().textContent()).includes('CC74'), 'control editado: Filtro CC74');
+  await a.screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'ms-ipad-controls.png') });
+  await b.click('#tabs button[data-page="controls"]');
+  await b.setViewportSize({ width: 390, height: 844 });
+  await wait(200);
+  await b.screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'ms-phone-controls.png') });
+  await b.click('#tabs button[data-page="live"]');
+  await wait(200);
+  await b.screenshot({ path: path.join(process.env.SHOTS || '/tmp', 'ms-phone-live.png') });
+
   await a.click('#btn-settings', { force: true });
   check(errors.length === 0, 'sin errores JS ' + errors.join(' | '));
   await browser.close();

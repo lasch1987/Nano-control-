@@ -1115,34 +1115,121 @@ function ccSender(cc) {
   };
 }
 
+// Plantillas de controles. Cada tira puede tener knob, botón A, botón B y fader (todos opcionales).
+const CTL_PRESETS = {
+  nano: {
+    title: 'Nano (por defecto)',
+    xy: [12, 13],
+    strips: Array.from({ length: 8 }, (_, i) => ({
+      knob: { n: 'Knob ' + (i + 1), cc: 21 + i },
+      a: { n: 'A', cc: 51 + i, t: 'toggle' },
+      b: { n: 'B', cc: 61 + i, t: 'mom' },
+      fader: { n: 'Fader ' + (i + 1), cc: 41 + i },
+    })),
+  },
+  two: {
+    title: 'MainStage «TWO»',
+    xy: [1, 11],
+    strips: [
+      ...[['Breath', 2], ['CC3', 3], ['Foot', 4], ['CC5', 5], ['Data', 6], ['Balance', 8], ['CC9', 9], ['CC12', 12]].map(([n, cc], i) => ({
+        knob: { n: 'Tweak ' + (i + 1), cc: 14 + i },
+        a: { n: ['G', 'A', 'B', '?', 'C', 'D', 'E', 'F'][i], cc: 22 + i, t: 'mom' },
+        fader: { n, cc },
+      })),
+      { knob: { n: 'RVRB', cc: 91 }, fader: { n: 'Volumen', cc: 7 } },
+      { knob: { n: 'DLY', cc: 92 } },
+    ],
+  },
+};
+
+function loadCtlLayout() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('nano.ctlLayout') || 'null');
+    if (saved && Array.isArray(saved.strips)) return saved;
+  } catch (_) {}
+  return JSON.parse(JSON.stringify(CTL_PRESETS[MS ? 'two' : 'nano']));
+}
+let ctlLayout = null;
+function saveCtlLayout() {
+  try { localStorage.setItem('nano.ctlLayout', JSON.stringify(ctlLayout)); } catch (_) {}
+}
+
 function buildControls() {
+  ctlLayout = loadCtlLayout();
+  const page = $('#page-controls');
+
+  // Barra: plantilla + modo edición
+  const bar = $('#ctl-bar');
+  bar.innerHTML = '';
+  const presetSel = h('select');
+  presetSel.title = 'Plantilla';
+  presetSel.append(new Option('Plantilla…', ''));
+  for (const [k, p] of Object.entries(CTL_PRESETS)) presetSel.append(new Option(p.title, k));
+  presetSel.onchange = () => {
+    const k = presetSel.value;
+    presetSel.value = '';
+    if (!k) return;
+    ctlLayout = JSON.parse(JSON.stringify(CTL_PRESETS[k]));
+    saveCtlLayout();
+    buildControls();
+  };
+  const edit = h('button', 'btn', '✎ Editar');
+  edit.type = 'button';
+  edit.addEventListener('click', () => {
+    const on = !page.classList.contains('editing');
+    page.classList.toggle('editing', on);
+    edit.textContent = on ? '✓ Listo' : '✎ Editar';
+    edit.classList.toggle('latched', on);
+    hint.textContent = on ? 'Toca un control para cambiar su nombre o su número CC' : `Canal MIDI ${settings.ctlChannel + 1} · en MainStage usa «Learn» en modo Layout`;
+  });
+  const hint = h('span', 'label', `Canal MIDI ${settings.ctlChannel + 1} · en MainStage usa «Learn» en modo Layout`);
+  bar.append(presetSel, edit, hint);
+  bar.classList.add('lockable');
+
+  // Tiras
   const wrap = $('#ctl-strips');
+  wrap.innerHTML = '';
+  wrap.style.setProperty('--n', ctlLayout.strips.length);
   const reg = [];
-  for (let i = 0; i < 8; i++) {
+  const send = (cc, v) => midi.cc(settings.ctlChannel, cc, v);
+  ctlLayout.strips.forEach((sp, i) => {
     const st = h('div', 'ctl-strip');
-    const kEl = h('div', 'knob2');
-    const kcc = 21 + i, fcc = 41 + i, acc = 51 + i, bcc = 61 + i;
-    const knob = new Knob(kEl, { mode: 'abs', onChange: ccSender(kcc) });
-    const fader = new Fader({ onChange: ccSender(fcc), color: '#19c3ff' });
-    const a = makeButton('A', {
-      latch: true,
-      onPress: () => midi.cc(settings.ctlChannel, acc, 127),
-      onRelease: () => midi.cc(settings.ctlChannel, acc, 0),
-    });
-    const b = makeButton('B', {
-      onPress: () => midi.cc(settings.ctlChannel, bcc, 127),
-      onRelease: () => midi.cc(settings.ctlChannel, bcc, 0),
-    });
-    st.append(kEl, h('div', 'cc', 'CC' + kcc), a, b, fader.el, h('div', 'cc', 'CC' + fcc));
+    const tag = (el, field) => { el.dataset.ctl = i + ':' + field; return el; };
+    if (sp.knob) {
+      const kEl = tag(h('div', 'knob2'), 'knob');
+      const knob = new Knob(kEl, { mode: 'abs', onChange: ccSender(sp.knob.cc) });
+      st.append(kEl, tag(h('div', 'cc', `${sp.knob.n}\nCC${sp.knob.cc}`), 'knob'));
+      reg.push([sp.knob.cc, knob]);
+    } else st.append(h('div', 'knob-gap'));
+    for (const f of ['a', 'b']) {
+      const d = sp[f];
+      if (!d) continue;
+      const btn = makeButton(d.n, {
+        latch: d.t === 'toggle',
+        onPress: () => send(d.cc, 127),
+        onRelease: () => send(d.cc, 0),
+        title: 'CC' + d.cc,
+      });
+      tag(btn, f);
+      st.append(btn);
+      reg.push([d.cc, { setRemote: (v) => d.t === 'toggle' && btn.classList.toggle('latched', v > 0.5) }]);
+    }
+    if (sp.fader) {
+      const fader = new Fader({ onChange: ccSender(sp.fader.cc), color: sp.fader.cc === 7 ? '#ff9a1a' : '#19c3ff' });
+      tag(fader.el, 'fader');
+      st.append(fader.el, tag(h('div', 'cc', `${sp.fader.n}\nCC${sp.fader.cc}`), 'fader'));
+      reg.push([sp.fader.cc, fader]);
+    } else st.append(h('div', 'fader-gap'));
     wrap.append(st);
-    reg.push([kcc, knob], [fcc, fader], [acc, { setRemote: (v) => a.classList.toggle('latched', v > 0.5) }]);
-  }
+  });
 
   // Pad XY
+  const [xcc, ycc] = ctlLayout.xy || [12, 13];
   const xw = $('#xy-wrap');
+  xw.innerHTML = '';
   const xy = h('div', 'xy');
   xy.append(h('div', 'hx'), h('div', 'hy'), h('div', 'dot'));
-  const sx = ccSender(12), sy = ccSender(13);
+  const sx = ccSender(xcc), sy = ccSender(ycc);
   let pid = null, r = null;
   const setXY = (x, y, emit) => {
     xy.style.setProperty('--x', x);
@@ -1163,11 +1250,53 @@ function buildControls() {
   const up = (e) => { if (e.pointerId === pid) pid = null; };
   xy.addEventListener('pointerup', up);
   xy.addEventListener('pointercancel', up);
-  xw.append(h('div', 'label', 'Pad XY · X = CC12 · Y = CC13'), xy);
+  xw.append(h('div', 'label', `Pad XY · X = CC${xcc} · Y = CC${ycc}`), xy);
 
   play.ctlReg = reg;
   rebindControls();
+
+  // En modo edición, tocar un control abre su editor en lugar de enviar MIDI
+  if (!page._editHooked) {
+    page._editHooked = true;
+    page.addEventListener('pointerdown', (e) => {
+      if (!page.classList.contains('editing')) return;
+      const el = e.target.closest('[data-ctl]');
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const [si, field] = el.dataset.ctl.split(':');
+      editControl(+si, field);
+    }, true);
+  }
 }
+
+function editControl(si, field) {
+  const d = ctlLayout.strips[si][field];
+  if (!d) return;
+  const dlg = $('#ctl-editor');
+  const f = dlg.querySelector('form');
+  f.elements.n.value = d.n;
+  f.elements.cc.value = d.cc;
+  const isBtn = field === 'a' || field === 'b';
+  f.elements.t.closest('label').hidden = !isBtn;
+  f.elements.t.value = d.t || 'mom';
+  dlg.querySelector('h2').textContent = { knob: 'Knob', fader: 'Fader', a: 'Botón', b: 'Botón' }[field] + ' ' + (si + 1);
+  dlg.onclose = () => {
+    if (dlg.returnValue !== 'ok') return;
+    const cc = parseInt(f.elements.cc.value, 10);
+    d.n = f.elements.n.value.trim().slice(0, 14) || d.n;
+    if (cc >= 0 && cc <= 127) d.cc = cc;
+    if (isBtn) d.t = f.elements.t.value;
+    saveCtlLayout();
+    buildControls();
+    $('#page-controls').classList.add('editing');
+    const eb = $('#ctl-bar .btn');
+    eb.textContent = '✓ Listo';
+    eb.classList.add('latched');
+  };
+  dlg.showModal();
+}
+
 function rebindControls() {
   genCtl.clear();
   for (const [cc, obj] of play.ctlReg || []) regCtl(ctlKey(cc), obj);
@@ -1201,6 +1330,10 @@ const live = {
       try { this.songs = JSON.parse(localStorage.getItem('nano.setlist') || '[]'); } catch (_) { this.songs = []; }
     }
     this.idx = clamp(this.idx, 0, Math.max(0, this.songs.length - 1));
+    if (this.songs[this.idx]?.type === 'set') {
+      const j = this.songs.findIndex((x, k) => k > this.idx && x.type !== 'set');
+      if (j >= 0) this.idx = j;
+    }
     this.render();
   },
 
@@ -1220,6 +1353,12 @@ const live = {
   select(i, send = true) {
     if (!this.songs.length) return;
     i = clamp(i, 0, this.songs.length - 1);
+    // Los títulos de sección (Set 1, Set 2…) no son patches: saltamos al siguiente patch
+    if (this.songs[i].type === 'set') {
+      const j = this.songs.findIndex((x, k) => k > i && x.type !== 'set');
+      if (j < 0) return;
+      i = j;
+    }
     this.idx = i;
     const song = this.songs[i];
     if (send) {
@@ -1239,7 +1378,12 @@ const live = {
   },
 
   step(d) {
-    if (this.songs.length) return this.select(this.idx + d);
+    if (this.songs.some((x) => x.type !== 'set')) {
+      let i = this.idx + d;
+      while (i >= 0 && i < this.songs.length && this.songs[i].type === 'set') i += d;
+      if (i < 0 || i >= this.songs.length) return;
+      return this.select(i);
+    }
     // Sin setlist: botones «Patch ±» de MainStage (asígnalos con Learn a Next/Previous Patch)
     const cc = d > 0 ? 103 : 102;
     midi.cc(settings.ctlChannel, cc, 127);
@@ -1251,24 +1395,32 @@ const live = {
     const list = $('#setlist');
     if (!list) return;
     list.innerHTML = '';
+    let num = 0;
     this.songs.forEach((song, i) => {
+      if (song.type === 'set') {
+        list.append(h('li', 'section', song.name || 'Set'));
+        return;
+      }
+      num++;
+      song._num = num;
       const li = h('li', i === this.idx ? 'current' : '');
       const meta = [song.pc !== '' && song.pc != null ? 'PC ' + song.pc : '', song.key, song.bpm ? song.bpm + ' bpm' : '']
         .filter(Boolean)
         .join(' · ');
-      li.append(h('span', 'n', String(i + 1)), h('span', 't', song.name || 'Sin nombre'), h('small', null, meta));
+      li.append(h('span', 'n', String(num)), h('span', 't', song.name || 'Sin nombre'), h('small', null, meta));
       li.addEventListener('click', () => this.select(i));
       list.append(li);
     });
-    const cur = this.songs[this.idx];
-    const nxt = this.songs[this.idx + 1];
-    $('#now-num').textContent = cur ? `${this.idx + 1} / ${this.songs.length}` : '';
+    const cur = this.songs[this.idx] && this.songs[this.idx].type !== 'set' ? this.songs[this.idx] : null;
+    const nxt = this.songs.find((x, k) => k > this.idx && x.type !== 'set');
+    const sec = [...this.songs.slice(0, this.idx + 1)].reverse().find((x) => x.type === 'set');
+    $('#now-num').textContent = cur ? `${sec ? sec.name + ' · ' : ''}${cur._num} / ${num}` : '';
     $('#now-key').textContent = cur && cur.key ? 'Tono: ' + cur.key : '';
     $('#now-bpm').textContent = cur && cur.bpm ? cur.bpm + ' bpm' : '';
     $('#now-name').textContent = cur ? cur.name || 'Sin nombre' : 'Crea tu setlist con «Editar»';
     $('#now-notes').textContent = cur ? cur.notes || '' : 'Sin setlist, «Anterior / Siguiente» envían CC102 / CC103: asígnalos en MainStage a «Previous Patch / Next Patch».';
     $('#next-name').textContent = nxt ? nxt.name : cur ? '(fin del set)' : '—';
-    $('#live-now-name').textContent = cur ? `${this.idx + 1}. ${cur.name || ''}` : 'MainStage';
+    $('#live-now-name').textContent = cur ? `${cur._num}. ${cur.name || ''}` : 'MainStage';
     list.querySelector('.current')?.scrollIntoView({ block: 'nearest' });
   },
 
@@ -1388,8 +1540,11 @@ function buildSetlistEditor() {
   };
   const draw = () => {
     rows.innerHTML = '';
+    let num = 0;
     draft.forEach((song, i) => {
-      const r = h('div', 'se-row');
+      const isSet = song.type === 'set';
+      if (!isSet) num++;
+      const r = h('div', 'se-row' + (isSet ? ' section' : ''));
       const tools = h('div', 'se-tools');
       const mk = (txt, fn, cls) => {
         const b = h('button', cls, txt);
@@ -1402,8 +1557,13 @@ function buildSetlistEditor() {
         mk('▼', () => { if (i < draft.length - 1) { [draft[i + 1], draft[i]] = [draft[i], draft[i + 1]]; draw(); } }),
         mk('✕', () => { draft.splice(i, 1); draw(); }, 'danger')
       );
+      if (isSet) {
+        r.append(h('span', 'se-num', '§'), field(song, 'name', 'Nombre de la sección (Set 1…)', 'se-name'), h('span'), h('span'), h('span'), tools);
+        rows.append(r);
+        return;
+      }
       r.append(
-        h('span', 'se-num', String(i + 1)),
+        h('span', 'se-num', String(num)),
         field(song, 'name', 'Nombre del tema', 'se-name'),
         field(song, 'pc', 'PC', 'se-pc', 'number'),
         field(song, 'key', 'Tono', 'se-key'),
@@ -1430,12 +1590,34 @@ function buildSetlistEditor() {
     rows.lastElementChild?.querySelector('.se-name')?.focus();
   });
   $('#se-autopc').addEventListener('click', () => {
-    draft.forEach((s, i) => { s.pc = String(i + settings.pcBase); });
+    let n = settings.pcBase;
+    for (const s of draft) if (s.type !== 'set') s.pc = String(n++);
+    draw();
+  });
+  $('#se-addset').addEventListener('click', () => {
+    draft.push({ type: 'set', name: 'Set ' + (draft.filter((x) => x.type === 'set').length + 1) });
+    draw();
+  });
+  // Pegar la lista de patches tal cual (una línea por patch). «Set …», «#…» o «…:» crean secciones.
+  $('#se-bulk-apply').addEventListener('click', () => {
+    const txt = $('#se-bulk').value;
+    const lines = txt.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) return;
+    let n = settings.pcBase;
+    draft = lines.map((l) => {
+      if (/^(set|conjunto)\b/i.test(l) || l.startsWith('#') || l.endsWith(':')) {
+        return { type: 'set', name: l.replace(/^#\s*/, '').replace(/:$/, '') };
+      }
+      const key = (l.match(/^([A-G][#b]?m?)\s*[-–]\s+/) || [])[1] || '';
+      return { name: l, pc: String(n++), key, bpm: '', notes: '' };
+    });
+    $('#se-bulk').value = '';
+    $('#se-bulk-wrap').open = false;
     draw();
   });
   $('#se-save').addEventListener('click', async () => {
     const clean = draft
-      .map((s) => ({
+      .map((s) => (s.type === 'set' ? { type: 'set', name: String(s.name || '').trim() || 'Set' } : {
         name: String(s.name || '').trim(),
         pc: String(s.pc ?? '').trim(),
         bank: String(s.bank ?? '').trim(),
@@ -1443,7 +1625,7 @@ function buildSetlistEditor() {
         bpm: String(s.bpm || '').trim(),
         notes: String(s.notes || ''),
       }))
-      .filter((s) => s.name || s.pc);
+      .filter((s) => s.type === 'set' || s.name || s.pc);
     try {
       await live.save(clean);
       dlg.close();

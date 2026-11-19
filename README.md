@@ -64,7 +64,9 @@ En ⚙︎ Ajustes → **Modo: MainStage** (o abre `http://IP:7777/?modo=mainstag
    | Acción 1–4 | 107–110 | Lo que quieras: Playback, mute de una capa, Panic, etc. |
 
 4. **Faders y knobs** (pestaña Controles): en **Layout** pulsa **Learn** en cada control de pantalla y mueve el control en Nano Control (faders CC 41–48, knobs CC 21–28). Para que los faders se coloquen solos al cambiar de patch, en el inspector del control elige **Enviar valor a → Nano Control**.
-5. **Sin setlist**, los botones Anterior/Siguiente envían CC102/CC103: asígnalos a *Previous/Next Patch* y funcionan igual.
+5. **Plantilla «TWO»:** en la pestaña Controles, la plantilla *MainStage «TWO»* ya usa los mismos CC que ese concierto (knobs CC14–21, faders CC2/3/4/5/6/8/9/12, Volumen CC7). Con **✎ Editar** puedes cambiar el nombre y el CC de cualquier control.
+6. **Lista de patches:** MainStage no envía los nombres de sus patches por MIDI, así que en **Editar → 📋 Pegar o escribir toda la lista** escribes o pegas los nombres (una línea cada uno; «Set 1», «Set 2» crean secciones) y los Program Change se numeran solos.
+7. **Sin setlist**, los botones Anterior/Siguiente envían CC102/CC103: asígnalos a *Previous/Next Patch* y funcionan igual.
 
 ## Configurar Logic Pro
 

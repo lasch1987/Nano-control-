@@ -79,8 +79,11 @@
     </section>
 
     <section id="page-controls" class="page">
-      <div id="ctl-strips" class="ctl-strips"></div>
-      <div id="xy-wrap" class="xy-wrap"></div>
+      <div id="ctl-bar" class="ctl-bar"></div>
+      <div class="ctl-body">
+        <div id="ctl-strips" class="ctl-strips"></div>
+        <div id="xy-wrap" class="xy-wrap"></div>
+      </div>
     </section>
 
     <section id="page-nav" class="page">
@@ -146,14 +149,39 @@
       <p class="hint">Cada tema envía su <b>Program Change</b> a MainStage (el número que aparece en el inspector del patch). Se guarda en el Mac y la ven todos tus dispositivos.</p>
       <div id="se-rows" class="se-rows"></div>
       <div class="row">
-        <button type="button" id="se-add">+ Añadir tema</button>
+        <button type="button" id="se-add">+ Tema</button>
+        <button type="button" id="se-addset">+ Sección (Set)</button>
         <button type="button" id="se-autopc">Numerar PC</button>
       </div>
+      <details id="se-bulk-wrap">
+        <summary class="hint">📋 Pegar o escribir toda la lista de una vez</summary>
+        <p class="hint">Un patch por línea, en el mismo orden que en MainStage. Las líneas que empiezan por «Set» crean una sección. Los Program Change se numeran solos. Si el nombre empieza por el tono («Ab - For Everyone»), también se rellena el tono.</p>
+        <textarea id="se-bulk" class="se-bulk" placeholder="Set 1&#10;B - SAVES bASS&#10;B - SyNTH&#10;Ab - FOR EVERYONE&#10;Set 2&#10;C - Closer"></textarea>
+        <div class="row"><button type="button" id="se-bulk-apply">Usar esta lista (reemplaza la actual)</button></div>
+      </details>
       <div class="row">
         <button value="cancel" type="submit" formnovalidate>Cancelar</button>
         <button type="button" id="se-save" class="primary">Guardar</button>
       </div>
       <p id="se-msg" class="hint"></p>
+    </form>
+  </dialog>
+
+  <dialog id="ctl-editor">
+    <form method="dialog">
+      <h2>Control</h2>
+      <label>Nombre <input type="text" name="n" maxlength="14" autocomplete="off"></label>
+      <label>Número CC (0–127) <input type="text" name="cc" inputmode="numeric" autocomplete="off"></label>
+      <label>Tipo de botón
+        <select name="t">
+          <option value="mom">Momentáneo (suena mientras lo pulsas)</option>
+          <option value="toggle">Alterna (un toque enciende, otro apaga)</option>
+        </select>
+      </label>
+      <div class="row">
+        <button value="cancel" formnovalidate>Cancelar</button>
+        <button value="ok" class="primary">Guardar</button>
+      </div>
     </form>
   </dialog>
 
